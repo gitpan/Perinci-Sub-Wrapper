@@ -7,6 +7,7 @@ META.yml
 README
 dist.ini
 lib/Perinci/Sub/Wrapper.pm
+lib/Test/Perinci/Sub/Wrapper.pm
 t/00-compile.t
 t/01-basics.t
 t/release-pod-coverage.t

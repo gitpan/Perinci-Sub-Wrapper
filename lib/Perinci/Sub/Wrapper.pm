@@ -9,7 +9,7 @@ require Exporter;
 our @ISA = qw(Exporter);
 our @EXPORT_OK = qw(wrap_sub);
 
-our $VERSION = '0.06'; # VERSION
+our $VERSION = '0.07'; # VERSION
 
 our %SPEC;
 
@@ -143,11 +143,10 @@ sub push_lines {
     $self->_push_or_unshift_lines("push", @lines);
 }
 
-# so far not needed yet, we adjust sections instead
-#sub unshift_lines {
-#    my ($self, @lines) = @_;
-#    $self->_push_or_unshift_lines("unshift", @lines);
-#}
+sub unshift_lines {
+    my ($self, @lines) = @_;
+    $self->_push_or_unshift_lines("unshift", @lines);
+}
 
 sub _code_as_str {
     my ($self) = @_;
@@ -527,13 +526,13 @@ Perinci::Sub::Wrapper - A multi-purpose subroutine wrapping framework
 
 =head1 VERSION
 
-version 0.06
+version 0.07
 
 =head1 SYNOPSIS
 
  use Perinci::Sub::Wrapper qw(wrap_sub);
- my $res = wrap_sub(sub => sub {die "test\n"}, ...);
- my $wrapped = $res->[2]{wrapped};
+ my $res = wrap_sub(sub => sub {die "test\n"}, meta=>{...});
+ my ($wrapped, $meta) = ($res->[2]{sub}, $res->[2]{meta});
  $wrapped->(); # call the wrapped function
 
 =head1 DESCRIPTION
