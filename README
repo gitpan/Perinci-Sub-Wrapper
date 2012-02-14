@@ -1,0 +1,75 @@
+NAME
+    Perinci::Sub::Wrapper - A multi-purpose subroutine wrapping framework
+
+VERSION
+    version 0.06
+
+SYNOPSIS
+     use Perinci::Sub::Wrapper qw(wrap_sub);
+     my $res = wrap_sub(sub => sub {die "test\n"}, ...);
+     my $wrapped = $res->[2]{wrapped};
+     $wrapped->(); # call the wrapped function
+
+DESCRIPTION
+    Perinci::Sub::Wrapper is an extensible subroutine wrapping framework. It
+    works by creating a single "large" wrapper function from a composite
+    bits of code, instead of using multiple small wrappers (a la Python's
+    decorator). The single-wrapper approach has the benefit of smaller
+    function call overhead.
+
+    This module is used to enforce Rinci properties, e.g. "args" (by
+    performing schema validation before calling the function), "timeout" (by
+    doing function call inside an "eval()" and using "alarm()" to limit the
+    execution), or "retry" (by wrapping function call inside a simple retry
+    loop).
+
+    It can also be used to convert argument passing style, e.g. from
+    "args_as" "array" to "args_as" "hash", so you can call function using
+    named arguments even though the function accepts positional arguments.
+
+    There are many other possible uses.
+
+    This module uses Log::Any for logging.
+
+EXTENDING
+    The framework is simple and extensible. Please delve directly into the
+    source code for now. Some notes:
+
+    The internal uses OO.
+
+    The main wrapper building mechanism is in the "wrap()" method.
+
+    For each Rinci property, it will call "handle_NAME()" wrapper handler
+    method. The "handlemeta_NAME()" methods are called first, to determine
+    order of processing. You can supply these methods either by subclassing
+    the class or, more simply, monkeypatching the method in the
+    "Perinci::Sub::Wrapper" package.
+
+    The wrapper handler method will be called with a hash argument,
+    containing these keys: value (property value), new (this key will exist
+    if "convert" argument of "wrap()" exists, to convert a property to a new
+    value).
+
+    For properties that have name in the form of "NAME1.NAME2.NAME3" (i.e.,
+    dotted) only the first part of the name will be used (i.e.,
+    "handle_NAME1()").
+
+METHODS
+    The OO interface is only used internally or when you want to extend the
+    wrapper.
+
+FUNCTIONS
+    None are exported, but they are exportable.
+
+SEE ALSO
+    Perinci
+
+AUTHOR
+    Steven Haryanto <stevenharyanto@gmail.com>
+
+COPYRIGHT AND LICENSE
+    This software is copyright (c) 2012 by Steven Haryanto.
+
+    This is free software; you can redistribute it and/or modify it under
+    the same terms as the Perl 5 programming language system itself.
+

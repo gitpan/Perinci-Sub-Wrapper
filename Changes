@@ -1,0 +1,34 @@
+Revision history for Perinci-Sub-Wrapper
+
+0.06     2012-02-12
+
+         Rename distribution from Sub-Spec-Wrapper to Perinci-Sub-Wrapper.
+
+
+0.05     2012-01-21
+
+         No functional changes. Mark Sub-Spec-Wrapper deprecated.
+
+
+0.04     2011-10-19
+
+         No functional changes. Add missing dependency to
+         Sub::Spec::ConvertArgs::Array [thanks cpant & Andreas].
+
+
+0.03     2011-09-22
+
+         [ENHANCEMENTS]
+
+         - Support 'args_as' spec clause (hash/hashref/array/arrayref supported,
+           but object not yet).
+
+
+0.02     2011-08-31
+
+         Build and POD fixes.
+
+
+0.01     2011-08-31
+
+         First release.
