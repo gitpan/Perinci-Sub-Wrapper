@@ -9,7 +9,7 @@ require Exporter;
 our @ISA = qw(Exporter);
 our @EXPORT_OK = qw(wrap_sub);
 
-our $VERSION = '0.10'; # VERSION
+our $VERSION = '0.11'; # VERSION
 
 our %SPEC;
 
@@ -223,8 +223,9 @@ sub handle_args_as {
     }
 
     my $tok;
+    $self->push_lines('', "# convert arguments for wrapped function ($value)")
+        unless $v eq $value;
     $v = $value;
-    $self->push_lines('', "# convert arguments for wrapped function ($v)");
     if ($v eq 'hash') {
         $tok = '%args';
     } elsif ($v eq 'hashref') {
@@ -359,7 +360,7 @@ sub wrap {
         'sub {');
     $self->indent;
     $self->push_lines(
-        'my $res;');
+        'my ($res, $eval_err);');
 
     # XXX validate metadata first to filter invalid properties, also to fill
     # default values. currently this is a quick/temp code.
@@ -408,7 +409,7 @@ sub wrap {
         $self->push_lines(
             '',
             '};',
-            'my $eval_err = $@;');
+            '$eval_err = $@;');
         # _needs_eval will automatically be enabled here, due after_eval being
         # filled
         $self->select_section('after_eval');
@@ -547,7 +548,7 @@ Perinci::Sub::Wrapper - A multi-purpose subroutine wrapping framework
 
 =head1 VERSION
 
-version 0.10
+version 0.11
 
 =head1 SYNOPSIS
 
