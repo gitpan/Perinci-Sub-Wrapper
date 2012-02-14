@@ -9,7 +9,7 @@ require Exporter;
 our @ISA = qw(Exporter);
 our @EXPORT_OK = qw(wrap_sub);
 
-our $VERSION = '0.09'; # VERSION
+our $VERSION = '0.10'; # VERSION
 
 our %SPEC;
 
@@ -117,8 +117,8 @@ sub unindent {
     $self;
 }
 
-sub _push_or_unshift_lines {
-    my ($self, $which, @lines) = @_;
+sub push_lines {
+    my ($self, @lines) = @_;
     my $section = $self->{_cur_section};
 
     unless (exists $self->{_codes}{$section}) {
@@ -128,22 +128,8 @@ sub _push_or_unshift_lines {
     }
 
     @lines = map {[$self->{_levels}{$section}, $_]} @lines;
-    if ($which eq 'push') {
-        push @{$self->{_codes}{$section}}, @lines;
-    } else {
-        unshift @{$self->{_codes}{$section}}, @lines;
-    }
+    push @{$self->{_codes}{$section}}, @lines;
     $self;
-}
-
-sub push_lines {
-    my ($self, @lines) = @_;
-    $self->_push_or_unshift_lines("push", @lines);
-}
-
-sub unshift_lines {
-    my ($self, @lines) = @_;
-    $self->_push_or_unshift_lines("unshift", @lines);
 }
 
 sub _code_as_str {
@@ -332,6 +318,8 @@ sub wrap {
     my $force    = $args{force};
     $args{trap} //= 1;
     my $trap     = $args{trap};
+    $args{compile} //= 1;
+    my $compile  = $args{compile};
 
     my $comppkg  = $self->{comppkg};
 
@@ -445,14 +433,19 @@ sub wrap {
 
     my $source = $self->_code_as_str;
     $log->tracef("wrapper source code: %s", $source);
-    my $wrapped = eval $source;
-    die "BUG: Wrapper code can't be compiled: $@" if $@;
+    my $result = {source=>$source};
+    if ($compile) {
+        my $wrapped = eval $source;
+        die "BUG: Wrapper code can't be compiled: $@" if $@;
 
-    # mark the wrapper with bless, to detect double wrapping attempt
-    bless $wrapped, $comppkg;
+        # mark the wrapper with bless, to detect double wrapping attempt
+        bless $wrapped, $comppkg;
 
+        $result->{sub}  = $wrapped;
+        $result->{meta} = $meta;
+    }
     $log->tracef("<- wrap()");
-    [200, "OK", {sub=>$wrapped, source=>$source, meta=>$meta}];
+    [200, "OK", $result];
 }
 
 $SPEC{wrap_sub} = {
@@ -477,7 +470,7 @@ Aside from wrapping the subroutine, will also create a new metadata for it. The
 new metadata is a shallow copy of the original, with most properties usually
 untouched. Only certain properties will be changed to match the new subroutine
 behavior. For example, if you set a different 'args_as' or 'result_naked' in
-'opts', then the new metadata will carry the new values.
+'convert', then the new metadata will carry the new values.
 
 _
         schema=>['hash*'=>[keys=>{
@@ -524,6 +517,17 @@ function dies. Note that if some other properties requires an eval block (like
 _
             default => 1,
         },
+        compile => {
+            schema => 'bool',
+            summary => 'Whether to compile the generated wrapper',
+            description => <<'_',
+
+Can be set to 0 to not actually wrap but just return the generated wrapper
+source code.
+
+_
+            default => 1,
+        },
     },
 };
 sub wrap_sub {
@@ -543,7 +547,7 @@ Perinci::Sub::Wrapper - A multi-purpose subroutine wrapping framework
 
 =head1 VERSION
 
-version 0.09
+version 0.10
 
 =head1 SYNOPSIS
 
@@ -573,7 +577,7 @@ There are many other possible uses.
 
 This module uses L<Log::Any> for logging.
 
-=for Pod::Coverage ^(new|handle(meta)?_.+|convert(meta)?_.+|wrap|add_.+|section_empty|indent|unindent|select_section|(push|unshift)_lines)$
+=for Pod::Coverage ^(new|handle(meta)?_.+|convert(meta)?_.+|wrap|add_.+|section_empty|indent|unindent|select_section|push_lines)$
 
 =head1 EXTENDING
 
