@@ -9,7 +9,7 @@ require Exporter;
 our @ISA = qw(Exporter);
 our @EXPORT_OK = qw(wrap_sub);
 
-our $VERSION = '0.14'; # VERSION
+our $VERSION = '0.15'; # VERSION
 
 our %SPEC;
 
@@ -185,11 +185,18 @@ sub handle_v {
                     delete $old->[1]{arg_complete};
                 }
                 if (defined $old->[1]{arg_aliases}) {
-                    # i'm lazy
-                    warn "Can't handle arg_aliases yet ".
-                        "(arg '$a' in property 'args'), ignored. You can move ".
-                            "this manually to a new arg with 'alias_for' set ".
-                                "to the canonical arg.";
+                    $new->{cmdline_aliases} = $old->[1]{arg_aliases};
+                    while (my ($al, $als) = each %{ $new->{cmdline_aliases} }) {
+                        if ($als->{code}) {
+                            warn join(
+                                "",
+                                "Converting arg_aliases -> cmdline_aliases: ",
+                                "alias '$al' has 'code', ",
+                                "this must be converted manually due to change",
+                                "of arguments (now only receives \\\%args)"
+                            );
+                        }
+                    }
                     delete $old->[1]{arg_aliases};
                 }
             } elsif (!ref($old)) {
@@ -329,6 +336,25 @@ sub handle_args {
                 $v->{$k}{schema} =
                     Data::Sah::normalize_schema($v->{$k}{schema});
             }
+            my $al = $v->{$k}{cmdline_aliases};
+            if ($al) {
+                for my $a (keys %$al) {
+                    if ($al->{$a}{schema}) {
+                        $al->{$a}{schema} =
+                            Data::Sah::normalize_schema($al->{$a}{schema});
+                    }
+                }
+            }
+        }
+    }
+
+    # remove internal properties
+    my $rm = $self->{_args}{remove_internal_properties};
+    while (my ($a, $as) = each %$v) {
+        for my $k (keys %$as) {
+            if ($k =~ /^_/) {
+                delete $as->{$k} if $rm;
+            }
         }
     }
 
@@ -414,6 +440,8 @@ sub wrap {
     my $compile  = $args{compile};
     $args{normalize_schemas} //= 1;
     my $normalize_schemas = $args{normalize_schemas};
+    $args{remove_internal_properties} //= 1;
+    my $remove_internal_properties = $args{remove_internal_properties};
 
     my $comppkg  = $self->{comppkg};
 
@@ -465,7 +493,10 @@ sub wrap {
 
     my %handler_args;
     for my $k0 (keys %$meta) {
-        next if $k0 =~ /^_/;
+        if ($k0 =~ /^_/) {
+            delete $meta->{$k0} if $remove_internal_properties;
+            next;
+        }
         my $k = $k0;
         $k =~ s/\..+//;
         next if $handler_args{$k};
@@ -625,6 +656,16 @@ again prior to use. If you want to turn off this behaviour, set to false.
 
 _
         },
+        remove_internal_properties => {
+            schema => ['bool' => {default=>1}],
+            summary => 'Whether to remove properties prefixed with _',
+            description => <<'_',
+
+By default, wrapper removes internal properties (properties which start with
+underscore) in the new metadata. Set this to false to keep them.
+
+_
+        },
     },
 };
 sub wrap_sub {
@@ -644,7 +685,7 @@ Perinci::Sub::Wrapper - A multi-purpose subroutine wrapping framework
 
 =head1 VERSION
 
-version 0.14
+version 0.15
 
 =head1 SYNOPSIS
 

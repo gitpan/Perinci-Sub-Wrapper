@@ -18,9 +18,10 @@ requires:
   Data::Sah: 0.02
   Log::Any: 0
   Perinci::Sub::DepChecker: 0
+  Rinci: 1.1.10
   Test::More: 0.96
   perl: 5.010000
 resources:
   homepage: http://search.cpan.org/dist/Perinci-Sub-Wrapper/
   repository: http://github.com/sharyanto/perl-Perinci-Sub-Wrapper
-version: 0.14
+version: 0.15

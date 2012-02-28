@@ -15,7 +15,8 @@ my ($sub, $meta);
 $sub = sub {};
 $meta = {
     args=>{
-        a=>[str => {default=>'x', arg_pos=>0, arg_greedy=>1}],
+        a=>[str => {default=>'x', arg_pos=>0, arg_greedy=>1,
+                    arg_aliases=>{a1=>{}}}],
         b=>'int',
     },
     result=>'int',
@@ -31,12 +32,14 @@ test_wrap(
         is($newmeta->{v}, 1.1, 'version');
         is_deeply($newmeta->{args},
                   {a=>{schema=>['str'=>{default=>'x'}],
-                       pos=>0, greedy=>1},
+                       pos=>0, greedy=>1, cmdline_aliases=>{a1=>{}}},
                    b=>{schema=>[int=>{}]}}, 'args')
             or diag explain $newmeta->{args};
         is_deeply($newmeta->{result},
                   {schema=>[int=>{}]}, 'result')
             or diag explain $newmeta->{result};
+
+
     },
 );
 
@@ -52,7 +55,8 @@ test_wrap(
 
 $sub = sub { [200, "OK", $_[0]/$_[1]] };
 $meta = {v=>1.1, args_as=>"array",
-         args=>{a=>{pos=>0, schema=>"int"}, b=>{pos=>1}}};
+         args=>{a=>{pos=>0, schema=>"int"},
+                b=>{pos=>1, cmdline_aliases=>{B=>{schema=>'bool'}}}}};
 test_wrap(
     name => '(trap=1, default) call doesn\'t die',
     wrap_args => {sub => $sub, meta => $meta},
@@ -64,6 +68,8 @@ test_wrap(
         my $newmeta = $wrap_res->[2]{meta};
         is_deeply($newmeta->{args}{a}{schema}, [int=>{}],
                   "schemas by default are normalized (a)");
+        is_deeply($newmeta->{args}{b}{cmdline_aliases}{B}{schema}, [bool=>{}],
+                  "schemas in cmdline_aliases by default are normalized (b)");
     },
 );
 test_wrap(
@@ -363,6 +369,33 @@ $meta = {v=>1.1, args=>{}, deps=>{env=>"A"}};
         call_status => 200,
     );
 }
+
+$sub = sub { [200, "OK"] };
+$meta = {v=>1.1,
+         args=>{a=>{pos=>0, schema=>"int", _argspec1=>"internal"}, b=>{pos=>1}},
+         _prop1=>"internal"};
+test_wrap(
+    name => '(remove_internal_properties=1, default)',
+    wrap_args => {sub => $sub, meta => $meta},
+    wrap_status => 200,
+    posttest => sub {
+        my ($wrap_res, $call_res) = @_;
+        my $newmeta = $wrap_res->[2]{meta};
+        ok(!exists($newmeta->{_prop1}), "_prop1 removed");
+        ok(!exists($newmeta->{args}{a}{_argspec1}), "_argspec1 removed");
+    },
+);
+test_wrap(
+    name => '(remove_internal_properties=0)',
+    wrap_args => {sub => $sub, meta => $meta, remove_internal_properties=>0},
+    wrap_status => 200,
+    posttest => sub {
+        my ($wrap_res, $call_res) = @_;
+        my $newmeta = $wrap_res->[2]{meta};
+        ok($newmeta->{_prop1}, "_prop1 exists");
+        ok($newmeta->{args}{a}{_argspec1}, "_argspec1 exists");
+    },
+);
 
 DONE_TESTING:
 done_testing();
