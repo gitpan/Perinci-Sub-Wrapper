@@ -9,7 +9,7 @@ require Exporter;
 our @ISA = qw(Exporter);
 our @EXPORT_OK = qw(wrap_sub);
 
-our $VERSION = '0.15'; # VERSION
+our $VERSION = '0.16'; # VERSION
 
 our %SPEC;
 
@@ -172,6 +172,10 @@ sub handle_v {
             my $old = $meta->{args}{$a};
             my $new = {};
             if (ref($old) eq 'ARRAY') {
+                for (qw/summary description/) {
+                    $new->{$_} = $old->[1]{$_} if defined $old->[1]{$_};
+                    delete $old->[1]{$_};
+                }
                 if (defined $old->[1]{arg_pos}) {
                     $new->{pos} = $old->[1]{arg_pos};
                     delete $old->[1]{arg_pos};
@@ -685,7 +689,7 @@ Perinci::Sub::Wrapper - A multi-purpose subroutine wrapping framework
 
 =head1 VERSION
 
-version 0.15
+version 0.16
 
 =head1 SYNOPSIS
 

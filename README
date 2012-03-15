@@ -2,7 +2,7 @@ NAME
     Perinci::Sub::Wrapper - A multi-purpose subroutine wrapping framework
 
 VERSION
-    version 0.15
+    version 0.16
 
 SYNOPSIS
      use Perinci::Sub::Wrapper qw(wrap_sub);

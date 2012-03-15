@@ -24,4 +24,4 @@ requires:
 resources:
   homepage: http://search.cpan.org/dist/Perinci-Sub-Wrapper/
   repository: http://github.com/sharyanto/perl-Perinci-Sub-Wrapper
-version: 0.15
+version: 0.16
