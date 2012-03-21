@@ -371,9 +371,14 @@ $meta = {v=>1.1, args=>{}, deps=>{env=>"A"}};
 }
 
 $sub = sub { [200, "OK"] };
-$meta = {v=>1.1,
-         args=>{a=>{pos=>0, schema=>"int", _argspec1=>"internal"}, b=>{pos=>1}},
-         _prop1=>"internal"};
+$meta = {
+    v=>1.1,
+    args=>{a=>{pos=>0, schema=>"int", _argspec1=>"internal"}, b=>{pos=>1}},
+    _prop1=>"internal",
+    result=>{_res1=>"1"},
+    examples=>[{_ex1=>"1"}],
+    links=>[{_ln1=>"1"}],
+};
 test_wrap(
     name => '(remove_internal_properties=1, default)',
     wrap_args => {sub => $sub, meta => $meta},
@@ -383,6 +388,9 @@ test_wrap(
         my $newmeta = $wrap_res->[2]{meta};
         ok(!exists($newmeta->{_prop1}), "_prop1 removed");
         ok(!exists($newmeta->{args}{a}{_argspec1}), "_argspec1 removed");
+        ok(!exists($newmeta->{result}{_res1}), "_res1 removed");
+        ok(!exists($newmeta->{examples}[0]{_ex1}), "_ex1 removed");
+        ok(!exists($newmeta->{links}[0]{_ln1}), "_ln1 removed");
     },
 );
 test_wrap(
@@ -394,6 +402,47 @@ test_wrap(
         my $newmeta = $wrap_res->[2]{meta};
         ok($newmeta->{_prop1}, "_prop1 exists");
         ok($newmeta->{args}{a}{_argspec1}, "_argspec1 exists");
+        ok($newmeta->{result}{_res1}, "_res1 exists");
+        ok($newmeta->{examples}[0]{_ex1}, "_ex1 exists");
+        ok($newmeta->{links}[0]{_ln1}, "_ln1 exists");
+    },
+);
+
+$meta = {
+    v=>1.1,
+    summary => "EN",
+    "summary.alt.lang.id_ID" => "ID",
+    "summary.alt.lang.fr_FR" => "FR",
+    args=>{a=>{default_lang=>"id_ID", summary=>"ID arg.a"},
+           b=>{summary=>"EN arg.b"}},
+    result=>{"description.alt.lang.id_ID"=>"ID res"},
+    examples=>[{"description.alt.lang.en_US"=>"EN ex1"}],
+    links=>[{},
+            {"description.alt.lang.fr_FR"=>"FR link1"}],
+};
+my $newmeta_expected = {
+    v=>1.1,
+    args_as=>"hash",
+    default_lang=>"id_ID",
+    summary => "ID",
+    "summary.alt.lang.en_US" => "EN",
+    "summary.alt.lang.fr_FR" => "FR",
+    args=>{a=>{default_lang=>"id_ID", summary=>"ID arg.a"},
+           b=>{default_lang=>"id_ID", "summary.alt.lang.en_US"=>"EN arg.b"}},
+    result=>{default_lang=>"id_ID", description=>"ID res"},
+    examples=>[{default_lang=>"id_ID", "description.alt.lang.en_US"=>"EN ex1"}],
+    links=>[{default_lang=>"id_ID"},
+            {default_lang=>"id_ID", "description.alt.lang.fr_FR"=>"FR link1"}],
+};
+test_wrap(
+    name => 'convert default_lang',
+    wrap_args => {sub => $sub, meta => $meta, convert=>{default_lang=>"id_ID"}},
+    wrap_status => 200,
+    posttest => sub {
+        my ($wrap_res, $call_res) = @_;
+        my $newmeta = $wrap_res->[2]{meta};
+        is_deeply($newmeta, $newmeta_expected, "newmeta")
+            or diag explain $newmeta;
     },
 );
 

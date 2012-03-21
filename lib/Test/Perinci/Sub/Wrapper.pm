@@ -10,7 +10,7 @@ use Test::More 0.96;
 our @ISA = qw(Exporter);
 our @EXPORT_OK = qw(test_wrap);
 
-our $VERSION = '0.16'; # VERSION
+our $VERSION = '0.17'; # VERSION
 
 sub test_wrap {
     my %test_args = @_;
@@ -79,7 +79,7 @@ Test::Perinci::Sub::Wrapper
 
 =head1 VERSION
 
-version 0.16
+version 0.17
 
 =head1 AUTHOR
 

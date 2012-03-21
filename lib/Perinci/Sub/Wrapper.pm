@@ -9,7 +9,7 @@ require Exporter;
 our @ISA = qw(Exporter);
 our @EXPORT_OK = qw(wrap_sub);
 
-our $VERSION = '0.16'; # VERSION
+our $VERSION = '0.17'; # VERSION
 
 our %SPEC;
 
@@ -221,17 +221,84 @@ sub handle_v {
         " on ".scalar(localtime);
 }
 
-sub handlemeta_default_lang { {} }
+# before all the other language properties (summary, description, ...)
+sub handlemeta_default_lang { {prio=>0.9, convert=>1} }
+sub handle_default_lang {
+    my ($self, %args) = @_;
+
+    my $meta = $self->{_meta};
+    my @m = ($meta);
+    push @m, @{$meta->{links}} if $meta->{links};
+    push @m, @{$meta->{examples}} if $meta->{examples};
+    push @m, $meta->{result} if $meta->{result};
+    push @m, values %{$meta->{args}} if $meta->{args};
+
+    my $i = 0;
+    my ($value, $new);
+    for my $m (@m) {
+        $i++;
+        if ($i == 1) {
+            $value = $args{value} // "en_US";
+            $new   = $args{new}   // $value;
+        } else {
+            $value = $m->{default_lang} // "en_US";
+        }
+        return if $value eq $new && $i == 1;
+        $m->{default_lang} = $new;
+        for my $prop (qw/summary description/) {
+            $m->{"$prop.alt.lang.$value"} //= $m->{$prop}
+                if defined $m->{$prop};
+            $m->{$prop} = $m->{"$prop.alt.lang.$new"};
+            delete $m->{$prop} unless defined $m->{$prop};
+            delete $m->{"$prop.alt.lang.$new"};
+        }
+    }
+}
+
 sub handlemeta_name { {} }
 sub handlemeta_summary { {} }
 sub handlemeta_description { {} }
 sub handlemeta_tags { {} }
-sub handlemeta_links { {} }
+
+sub handlemeta_links { {prio=>5} }
+sub handle_links {
+    my ($self, %args) = @_;
+
+    my $v = $self->{_meta}{links};
+    return unless $v;
+
+    my $rm = $self->{_args}{remove_internal_properties};
+    for my $ln (@$v) {
+        for my $k (keys %$ln) {
+            if ($k =~ /^_/) {
+                delete $ln->{$k} if $rm;
+            }
+        }
+    }
+}
+
 sub handlemeta_text_markup { {} }
 sub handlemeta_is_func { {} }
 sub handlemeta_is_meth { {} }
 sub handlemeta_is_class_meth { {} }
-sub handlemeta_examples { {} }
+
+sub handlemeta_examples { {prio=>5} }
+sub handle_examples {
+    my ($self, %args) = @_;
+
+    my $v = $self->{_meta}{examples};
+    return unless $v;
+
+    my $rm = $self->{_args}{remove_internal_properties};
+    for my $ex (@$v) {
+        for my $k (keys %$ex) {
+            if ($k =~ /^_/) {
+                delete $ex->{$k} if $rm;
+            }
+        }
+    }
+}
+
 sub handlemeta_features { {} }
 
 # run before args
@@ -352,7 +419,6 @@ sub handle_args {
         }
     }
 
-    # remove internal properties
     my $rm = $self->{_args}{remove_internal_properties};
     while (my ($a, $as) = each %$v) {
         for my $k (keys %$as) {
@@ -380,6 +446,13 @@ sub handle_result {
     if ($self->{_args}{normalize_schemas}) {
         if ($v->{schema}) {
             $v->{schema} = Data::Sah::normalize_schema($v->{schema});
+        }
+    }
+
+    my $rm = $self->{_args}{remove_internal_properties};
+    for my $k (keys %$v) {
+        if ($k =~ /^_/) {
+            delete $v->{$k} if $rm;
         }
     }
 
@@ -490,13 +563,15 @@ sub wrap {
     $self->push_lines(
         'my ($res, $eval_err);');
 
-    # XXX validate metadata first to filter invalid properties, also to fill
-    # default values. currently this is a quick/temp code.
     $meta->{args_as} //= "hash";
-    $meta->{result_naked} //= 0;
+
+    # XXX validate metadata first to filter invalid properties
+
+    my %props = map {$_=>1} keys %$meta;
+    $props{$_} = 1 for keys %$convert;
 
     my %handler_args;
-    for my $k0 (keys %$meta) {
+    for my $k0 (keys %props) {
         if ($k0 =~ /^_/) {
             delete $meta->{$k0} if $remove_internal_properties;
             next;
@@ -689,7 +764,7 @@ Perinci::Sub::Wrapper - A multi-purpose subroutine wrapping framework
 
 =head1 VERSION
 
-version 0.16
+version 0.17
 
 =head1 SYNOPSIS
 
