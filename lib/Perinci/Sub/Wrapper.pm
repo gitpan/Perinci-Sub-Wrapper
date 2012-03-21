@@ -9,7 +9,7 @@ require Exporter;
 our @ISA = qw(Exporter);
 our @EXPORT_OK = qw(wrap_sub);
 
-our $VERSION = '0.17'; # VERSION
+our $VERSION = '0.18'; # VERSION
 
 our %SPEC;
 
@@ -677,11 +677,11 @@ behavior. For example, if you set a different 'args_as' or 'result_naked' in
 'convert', then the new metadata will carry the new values.
 
 _
-        schema=>['hash*'=>[keys=>{
+        schema=>['hash*'=>{keys=>{
             sub=>'code*',
             source=>'str*',
             meta=>'hash*',
-        }]],
+        }}],
     },
     args => {
         sub => {
@@ -764,7 +764,7 @@ Perinci::Sub::Wrapper - A multi-purpose subroutine wrapping framework
 
 =head1 VERSION
 
-version 0.17
+version 0.18
 
 =head1 SYNOPSIS
 
@@ -821,13 +821,74 @@ only the first part of the name will be used (i.e., C<handle_NAME1()>).
 
 The OO interface is only used internally or when you want to extend the wrapper.
 
-=head1 FUNCTIONS
-
-None are exported, but they are exportable.
-
 =head1 SEE ALSO
 
 L<Perinci>
+
+=head1 FUNCTIONS
+
+
+=head2 wrap_sub(%args) -> [status, msg, result, meta]
+
+Wrap subroutine to do various things, like enforcing Rinci properties.
+
+Will wrap subroutine and bless the generated wrapped subroutine (by default into
+'Perinci::Sub::Wrapped') as a way of marking that the subroutine is a wrapped
+one.
+
+Arguments ('*' denotes required arguments):
+
+=over 4
+
+=item * B<compile> => I<bool> (default: 1)
+
+Whether to compile the generated wrapper.
+
+Can be set to 0 to not actually wrap but just return the generated wrapper
+source code.
+
+=item * B<convert>* => I<hash>
+
+Properties to convert to new value.
+
+So far you can convert 'argsB<as' and 'result>naked'.
+
+=item * B<meta>* => I<hash>
+
+The function metadata.
+
+=item * B<normalize_schema> => I<bool> (default: 1)
+
+Whether to normalize schemas in metadata.
+
+By default, wrapper normalize Sah schemas in metadata, like in 'args' or
+'result' property, for convenience so that it does not need to be normalized
+again prior to use. If you want to turn off this behaviour, set to false.
+
+=item * B<remove_internal_properties> => I<bool> (default: 1)
+
+Whether to remove properties prefixed with _.
+
+By default, wrapper removes internal properties (properties which start with
+underscore) in the new metadata. Set this to false to keep them.
+
+=item * B<sub>* => I<code>
+
+The code to wrap.
+
+=item * B<trap> => I<bool> (default: 1)
+
+Whether to trap exception using an eval block.
+
+If set to true, will wrap call using an eval {} block and return 500 /undef if
+function dies. Note that if some other properties requires an eval block (like
+'timeout') an eval block will be added regardless of this parameter.
+
+=back
+
+Return value:
+
+Returns an enveloped result (an array). First element (status) is an integer containing HTTP status code (200 means OK, 4xx caller error, 5xx function error). Second element (msg) is a string containing error message, or 'OK' if status is 200. Third element (result) is optional, the actual result. Fourth element (meta) is called result metadata and is optional, a hash that contains extra information.
 
 =head1 AUTHOR
 
