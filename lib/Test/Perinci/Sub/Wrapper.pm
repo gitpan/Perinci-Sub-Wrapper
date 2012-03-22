@@ -10,7 +10,7 @@ use Test::More 0.96;
 our @ISA = qw(Exporter);
 our @EXPORT_OK = qw(test_wrap);
 
-our $VERSION = '0.18'; # VERSION
+our $VERSION = '0.19'; # VERSION
 
 sub test_wrap {
     my %test_args = @_;
@@ -69,17 +69,18 @@ sub test_wrap {
 }
 
 1;
+# ABSTRACT: Provide test_wrap() to test wrapper
 
 __END__
 =pod
 
 =head1 NAME
 
-Test::Perinci::Sub::Wrapper
+Test::Perinci::Sub::Wrapper - Provide test_wrap() to test wrapper
 
 =head1 VERSION
 
-version 0.18
+version 0.19
 
 =head1 FUNCTIONS
 
