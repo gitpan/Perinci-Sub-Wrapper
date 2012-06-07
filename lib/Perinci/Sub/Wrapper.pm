@@ -9,7 +9,7 @@ require Exporter;
 our @ISA = qw(Exporter);
 our @EXPORT_OK = qw(wrap_sub);
 
-our $VERSION = '0.19'; # VERSION
+our $VERSION = '0.20'; # VERSION
 
 our %SPEC;
 
@@ -41,8 +41,14 @@ sub _known_sections {
         OPEN_EVAL => {order=>20},
 
         # for handlers to put various checks before calling the wrapped
-        # function, from data validation, argument conversion, etc.
+        # function, from data validation, argument conversion, etc. this is now
+        # deprecated.
         before_call => {order=>30},
+
+        # argument validation now uses this, to get more specific ordering
+        before_call_arg_validation => {order=>30},
+
+        before_call_after_arg_validation => {order=>35},
 
         # reserved by the wrapper for calling the function
         CALL => {order=>50},
@@ -206,7 +212,8 @@ sub handle_v {
             } elsif (!ref($old)) {
                 # do nothing
             } else {
-                die "Can't handle v1.0 args property (not array/scalar)";
+                die "Can't handle v1.0 args property ".
+                    "(arg '$a' not array/scalar)";
             }
             $new->{schema} = $old;
             $meta->{args}{$a} = $new;
@@ -328,7 +335,7 @@ sub handle_args_as {
     # they have to undergo a round-trip to hash even when both accept 'array').
     # This will be rectified in the future.
 
-    $self->select_section('before_call');
+    $self->select_section('before_call_arg_validation');
 
     my $v = $new // $value;
     $self->push_lines('', "# accept arguments ($v)");
@@ -488,7 +495,7 @@ sub handle_deps {
     my $value = $args{value};
     my $meta  = $self->{_meta};
     my $v     = $self->{_var_meta};
-    $self->select_section('before_call');
+    $self->select_section('before_call_after_arg_validation');
     $self->push_lines('', '# check dependencies');
     $self->push_lines('require Perinci::Sub::DepChecker;');
     $self->push_lines('my $deps_res = Perinci::Sub::DepChecker::check_deps($'.
@@ -497,6 +504,23 @@ sub handle_deps {
         $self->_errif(412, '"Deps failed: $deps_res"', '$deps_res');
     } else {
         $self->push_lines('die "Deps failed: $deps_res" if $deps_res;');
+    }
+
+    # we handle some deps our own
+    if ($value->{tmp_dir}) {
+        $self->push_lines(
+            'unless ($args{-tmp_dir}) { $res = [412, "Dep failed: '.
+                'please specify -tmp_dir"]; return $res }');
+    }
+    if ($value->{trash_dir}) {
+        $self->push_lines(
+            'unless ($args{-trash_dir}) { $res = [412, "Dep failed: '.
+                'please specify -trash_dir"]; return $res }');
+    }
+    if ($value->{undo_trash_dir}) {
+        $self->push_lines(
+            'unless ($args{-undo_trash_dir} || $args{-undo_action} && $args{-undo_action} =~ /\A(?:undo|redo)\z/) { $res = [412, "Dep failed: '.
+                'please specify -undo_trash_dir"]; return $res }');
     }
 }
 
@@ -644,7 +668,7 @@ sub wrap {
     my $result = {source=>$source};
     if ($compile) {
         my $wrapped = eval $source;
-        die "BUG: Wrapper code can't be compiled: $@" if $@;
+        die "BUG: Wrapper code can't be compiled: $@" if $@ || !$wrapped;
 
         # mark the wrapper with bless, to detect double wrapping attempt
         bless $wrapped, $comppkg;
@@ -767,7 +791,7 @@ Perinci::Sub::Wrapper - A multi-purpose subroutine wrapping framework
 
 =head1 VERSION
 
-version 0.19
+version 0.20
 
 =head1 SYNOPSIS
 
