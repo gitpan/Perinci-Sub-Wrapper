@@ -9,7 +9,7 @@ require Exporter;
 our @ISA = qw(Exporter);
 our @EXPORT_OK = qw(wrap_sub);
 
-our $VERSION = '0.20'; # VERSION
+our $VERSION = '0.21'; # VERSION
 
 our %SPEC;
 
@@ -518,9 +518,13 @@ sub handle_deps {
                 'please specify -trash_dir"]; return $res }');
     }
     if ($value->{undo_trash_dir}) {
-        $self->push_lines(
-            'unless ($args{-undo_trash_dir} || $args{-undo_action} && $args{-undo_action} =~ /\A(?:undo|redo)\z/) { $res = [412, "Dep failed: '.
-                'please specify -undo_trash_dir"]; return $res }');
+        $self->push_lines(join(
+            '',
+            'unless ($args{-undo_trash_dir} || $args{-tx_manager} || ',
+            '$args{-undo_action} && $args{-undo_action}=~/\A(?:undo|redo)\z/) ',
+            '{ $res = [412, "Dep failed: ',
+            'please specify -undo_trash_dir"]; return $res }'
+        ));
     }
 }
 
@@ -791,7 +795,7 @@ Perinci::Sub::Wrapper - A multi-purpose subroutine wrapping framework
 
 =head1 VERSION
 
-version 0.20
+version 0.21
 
 =head1 SYNOPSIS
 
