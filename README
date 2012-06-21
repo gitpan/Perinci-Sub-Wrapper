@@ -2,7 +2,7 @@ NAME
     Perinci::Sub::Wrapper - A multi-purpose subroutine wrapping framework
 
 VERSION
-    version 0.21
+    version 0.22
 
 SYNOPSIS
      use Perinci::Sub::Wrapper qw(wrap_sub);
@@ -61,7 +61,12 @@ METHODS
 SEE ALSO
     Perinci
 
+DESCRIPTION
+    This module has Rinci metadata.
+
 FUNCTIONS
+    None are exported by default, but they are exportable.
+
   wrap_sub(%args) -> [status, msg, result, meta]
     Wrap subroutine to do various things, like enforcing Rinci properties.
 
@@ -84,8 +89,8 @@ FUNCTIONS
 
         Not all properties can be converted, but these are a partial list of
         those that can: v (usually do not need to be specified when
-        converting from 1.0 to 1.1, will be done automatically), argsas,
-        resultnaked, default_lang.
+        converting from 1.0 to 1.1, will be done automatically), args*as,
+        result*naked, default_lang.
 
     *   meta* => *hash*
 

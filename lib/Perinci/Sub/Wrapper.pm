@@ -9,7 +9,7 @@ require Exporter;
 our @ISA = qw(Exporter);
 our @EXPORT_OK = qw(wrap_sub);
 
-our $VERSION = '0.21'; # VERSION
+our $VERSION = '0.22'; # VERSION
 
 our %SPEC;
 
@@ -307,7 +307,27 @@ sub handle_examples {
     }
 }
 
-sub handlemeta_features { {} }
+# after args
+sub handlemeta_features { {prio=>15} }
+sub handle_features {
+    my ($self, %args) = @_;
+
+    my $v = $self->{_meta}{features} // {};
+
+    $self->select_section('before_call_after_arg_validation');
+
+    if ($v->{tx} && $v->{tx}{req}) {
+        $self->push_lines('', '# check required transaction');
+        if ($self->{_args}{trap}) {
+            $self->_errif(412, '"Must run with transaction (pass -tx_manager)"',
+                          '!$args{-tx_manager}');
+        } else {
+            $self->push_lines(
+                'die "Must run with transaction (pass -tx_manager)" '.
+                    'unless $args{-tx_manager};'),
+        }
+    }
+}
 
 # run before args
 sub handlemeta_args_as { {prio=>1, convert=>1} }
@@ -795,7 +815,7 @@ Perinci::Sub::Wrapper - A multi-purpose subroutine wrapping framework
 
 =head1 VERSION
 
-version 0.21
+version 0.22
 
 =head1 SYNOPSIS
 
@@ -856,8 +876,15 @@ The OO interface is only used internally or when you want to extend the wrapper.
 
 L<Perinci>
 
+=head1 DESCRIPTION
+
+
+This module has L<Rinci> metadata.
+
 =head1 FUNCTIONS
 
+
+None are exported by default, but they are exportable.
 
 =head2 wrap_sub(%args) -> [status, msg, result, meta]
 
@@ -884,7 +911,7 @@ Properties to convert to new value.
 
 Not all properties can be converted, but these are a partial list of those that
 can: v (usually do not need to be specified when converting from 1.0 to 1.1,
-will be done automatically), argsB<as, result>naked, default_lang.
+will be done automatically), argsI<as, result>naked, default_lang.
 
 =item * B<meta>* => I<hash>
 
