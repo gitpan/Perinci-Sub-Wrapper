@@ -2,7 +2,7 @@ NAME
     Perinci::Sub::Wrapper - A multi-purpose subroutine wrapping framework
 
 VERSION
-    version 0.24
+    version 0.25
 
 SYNOPSIS
      use Perinci::Sub::Wrapper qw(wrap_sub);
@@ -101,6 +101,18 @@ FUNCTIONS
 
         *   add more comments (e.g. for each property handler)
 
+    *   forbid_tags => *array*
+
+        Forbid properties which have certain wrapping tags.
+
+        Some property wrapper, like dies*on*error (see
+        Perinci::Sub::property::dies*on*error) has tags 'die', to signify
+        that it can cause wrapping code to die.
+
+        Sometimes such properties are not desirable, e.g. in daemon
+        environment. The use of such properties can be forbidden using this
+        setting.
+
     *   meta* => *hash*
 
         The function metadata.
@@ -125,6 +137,14 @@ FUNCTIONS
     *   sub* => *code*
 
         The code to wrap.
+
+    *   sub_name => *str*
+
+        The name of the code, e.g. Foo::func.
+
+        It is a good idea to supply this so that wrapper code can display
+        this information when they need to (e.g. see
+        Perinci::Sub::property::dies*on*error).
 
     *   trap => *bool* (default: 1)
 
@@ -154,14 +174,23 @@ COPYRIGHT AND LICENSE
     the same terms as the Perl 5 programming language system itself.
 
 CHANGES
+  Version 0.25 (2012-07-31)
+    *   [ENHANCEMENTS] Add argument: sub_name (also so that 'dies_on_error'
+        property can display proper die message showing subroutine name).
+
+    *   [ENHANCEMENTS] Add argument: forbid_tags.
+
+    *   [FIXES] Change handling of 'result_naked' property so that
+        'dies_on_error' property can get result status + message properly.
+
   Version 0.24 (2012-07-31)
     *   [ENHANCEMENTS] Introduce section: 'before_return_res'.
 
     *   [INCOMPATIBLE CHANGES] Introduce protocol version which must be
         specified by all property handlers (assumed to be 1 if unspecified).
-        This is to handle introducing changes at the basic structure of
-        wrapper code which is potentially incompatible with some/lots of
-        existing property handlers.
+        This is bumped whenever an incompatible change at the basic
+        structure of wrapper code is introduced. Bumping the protocol
+        version will force all existing property handlers to be updated.
 
     *   [INCOMPATIBLE CHANGES] Bump protocol version from 1 to 2: to return
         result immediately, handler must now say 'goto RETURN_RES' instead

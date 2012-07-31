@@ -10,7 +10,7 @@ require Exporter;
 our @ISA = qw(Exporter);
 our @EXPORT_OK = qw(wrap_sub);
 
-our $VERSION = '0.24'; # VERSION
+our $VERSION = '0.25'; # VERSION
 
 our %SPEC;
 
@@ -102,9 +102,7 @@ sub _errif {
     $self->indent;
     $self->push_lines(
         # we set $res here when we return from inside the eval block
-        '$res = ' . (
-            $self->{_meta}{result_naked} ?
-                'undef' : "[$c_status, $c_msg]") . ';',
+        '$res = ' . "[$c_status, $c_msg]" . ';',
         'goto RETURN_RES;');
     $self->unindent;
     $self->push_lines('}');
@@ -532,25 +530,26 @@ sub handle_result {
     # XXX validation not implemented yet
 }
 
-sub handlemeta_result_naked { {v=>2, prio=>90, convert=>1} }
+sub handlemeta_result_naked { {v=>2, prio=>100, convert=>1} }
 sub handle_result_naked {
     my ($self, %args) = @_;
 
     # XXX option to check whether result is really naked
 
-    if (defined($args{new}) && !!$args{value} ne !!$args{new}) {
-        $self->select_section('after_call');
-        if ($args{new}) {
-            $self->push_lines(
-                '', '# strip result envelope',
-                '$res = $res->[2];',
-            );
-        } else {
-            $self->push_lines(
-                '', '# add result envelope',
-                '$res = [200, "OK", $res];',
-            );
-        }
+    my $old = $args{value};
+    my $v   = $args{new} // $old;
+
+    $self->select_section('before_return_res');
+    if ($v) {
+        $self->push_lines(
+            '', '# strip result envelope',
+            '$res = $res->[2];',
+        );
+    } elsif ($old && !$v) {
+        $self->push_lines(
+            '', '# add result envelope',
+            '$res = [200, "OK", $res->[2]];',
+        );
     }
 }
 
@@ -651,7 +650,6 @@ sub wrap {
     $self->{_cur_handler_meta} = undef;
     $self->{_levels} = {};
     $self->{_codes} = {};
-
     $self->{_args} = \%args;
     $self->{_meta} = $meta; # the new metadata
     $self->select_section('OPEN_SUB');
@@ -694,6 +692,14 @@ sub wrap {
         die "Please update property handler $k which is still at v=$hm->{v} ".
             "(needs v=$protocol_version)"
                 unless $hm->{v} == $protocol_version;
+        if ($args{forbid_tags} && $hm->{tags}) {
+            for my $t (@{$hm->{tags}}) {
+                if ($t ~~ $args{forbid_tags}) {
+                    return [412, "Can't wrap property $k0 (forbidden by ".
+                                "forbid_tags, tag=$t)"];
+                }
+            }
+        }
         my $ha = {
             prio=>$hm->{prio}, value=>$meta->{$k0}, property=>$k0,
             meth=>"handle_$k",
@@ -724,6 +730,12 @@ sub wrap {
 
     $self->select_section('CALL');
     $self->push_lines('$res = $'.$subname."->(".$self->{_args_token}.");");
+    if ($self->{_args}{meta}{result_naked}) {
+        # internally we always use result envelope, so let's envelope this
+        # temporarily.
+        $self->push_lines('# add temporary envelope',
+                          '$res = [200, "OK", $res];');
+    }
 
     if ($trap || $self->_needs_eval) {
         $self->select_section('CLOSE_EVAL');
@@ -805,6 +817,16 @@ _
             summary => 'The code to wrap',
             req => 1, pos => 0,
         },
+        sub_name => {
+            schema => 'str*',
+            summary => 'The name of the code, e.g. Foo::func',
+            description => <<'_',
+
+It is a good idea to supply this so that wrapper code can display this
+information when they need to (e.g. see Perinci::Sub::property::dies_on_error).
+
+_
+        },
         meta => {
             schema => 'hash*',
             summary => 'The function metadata',
@@ -875,6 +897,20 @@ what this does:
 
 _
         },
+        forbid_tags => {
+            schema => 'array',
+            summary => 'Forbid properties which have certain wrapping tags',
+            description => <<'_',
+
+Some property wrapper, like dies_on_error (see
+Perinci::Sub::property::dies_on_error) has tags 'die', to signify that it can
+cause wrapping code to die.
+
+Sometimes such properties are not desirable, e.g. in daemon environment. The use
+of such properties can be forbidden using this setting.
+
+_
+        },
     },
 };
 sub wrap_sub {
@@ -894,7 +930,7 @@ Perinci::Sub::Wrapper - A multi-purpose subroutine wrapping framework
 
 =head1 VERSION
 
-version 0.24
+version 0.25
 
 =head1 SYNOPSIS
 
@@ -1008,6 +1044,17 @@ add more comments (e.g. for each property handler)
 
 =back
 
+=item * B<forbid_tags> => I<array>
+
+Forbid properties which have certain wrapping tags.
+
+Some property wrapper, like diesI<on>error (see
+Perinci::Sub::property::diesI<on>error) has tags 'die', to signify that it can
+cause wrapping code to die.
+
+Sometimes such properties are not desirable, e.g. in daemon environment. The use
+of such properties can be forbidden using this setting.
+
 =item * B<meta>* => I<hash>
 
 The function metadata.
@@ -1030,6 +1077,13 @@ underscore) in the new metadata. Set this to false to keep them.
 =item * B<sub>* => I<code>
 
 The code to wrap.
+
+=item * B<sub_name> => I<str>
+
+The name of the code, e.g. Foo::func.
+
+It is a good idea to supply this so that wrapper code can display this
+information when they need to (e.g. see Perinci::Sub::property::diesI<on>error).
 
 =item * B<trap> => I<bool> (default: 1)
 
@@ -1058,6 +1112,28 @@ the same terms as the Perl 5 programming language system itself.
 
 =head1 CHANGES
 
+=head2 Version 0.25 (2012-07-31)
+
+=over 4
+
+=item *
+
+[ENHANCEMENTS] Add argument: sub_name (also so that 'dies_on_error' property can display proper die message showing subroutine name).
+
+=item *
+
+[ENHANCEMENTS] Add argument: forbid_tags.
+
+=back
+
+=over 4
+
+=item *
+
+[FIXES] Change handling of 'result_naked' property so that 'dies_on_error' property can get result status + message properly.
+
+=back
+
 =head2 Version 0.24 (2012-07-31)
 
 =over 4
@@ -1072,7 +1148,7 @@ the same terms as the Perl 5 programming language system itself.
 
 =item *
 
-[INCOMPATIBLE CHANGES] Introduce protocol version which must be specified by all property handlers (assumed to be 1 if unspecified). This is to handle introducing changes at the basic structure of wrapper code which is potentially incompatible with some/lots of existing property handlers.
+[INCOMPATIBLE CHANGES] Introduce protocol version which must be specified by all property handlers (assumed to be 1 if unspecified). This is bumped whenever an incompatible change at the basic structure of wrapper code is introduced. Bumping the protocol version will force all existing property handlers to be updated.
 
 =item *
 

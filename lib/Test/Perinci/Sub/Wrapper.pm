@@ -10,7 +10,7 @@ use Test::More 0.96;
 our @ISA = qw(Exporter);
 our @EXPORT_OK = qw(test_wrap);
 
-our $VERSION = '0.24'; # VERSION
+our $VERSION = '0.25'; # VERSION
 
 sub test_wrap {
     my %test_args = @_;
@@ -45,6 +45,10 @@ sub test_wrap {
             my $call_eval_err = $@;
             if ($test_args{call_dies}) {
                 ok($call_eval_err, "call dies");
+                if ($test_args{call_die_message}) {
+                    like($call_eval_err, $test_args{call_die_message},
+                         "call die message");
+                }
             } else {
                 ok(!$call_eval_err, "call doesn't die")
                     or diag $call_eval_err;
@@ -83,7 +87,7 @@ Test::Perinci::Sub::Wrapper - Provide test_wrap() to test wrapper
 
 =head1 VERSION
 
-version 0.24
+version 0.25
 
 =head1 DESCRIPTION
 
