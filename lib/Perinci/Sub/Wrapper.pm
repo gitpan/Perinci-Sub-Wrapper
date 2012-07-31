@@ -5,11 +5,12 @@ use strict;
 use warnings;
 use Log::Any '$log';
 
+use Module::Load;
 require Exporter;
 our @ISA = qw(Exporter);
 our @EXPORT_OK = qw(wrap_sub);
 
-our $VERSION = '0.22'; # VERSION
+our $VERSION = '0.23'; # VERSION
 
 our %SPEC;
 
@@ -123,6 +124,10 @@ sub unindent {
     $self;
 }
 
+# line can be code or comment. code should not contain string literals that
+# cross lines (i.e. contain literal newlines) because push_lines() might add
+# comment at the end of each line.
+
 sub push_lines {
     my ($self, @lines) = @_;
     my $section = $self->{_cur_section};
@@ -134,6 +139,14 @@ sub push_lines {
     }
 
     @lines = map {[$self->{_levels}{$section}, $_]} @lines;
+    if ($self->{_debug}) {
+        for my $l (@lines) {
+            $l->[2] =
+                $self->{_cur_handler} ?
+                    "$self->{_cur_handler}"
+                        : "";
+        }
+    }
     push @{$self->{_codes}{$section}}, @lines;
     $self;
 }
@@ -152,7 +165,13 @@ sub _code_as_str {
             $l->[0] += $prev_section_level;
             die "BUG: Negative indent level in line $i: '$l'"
                 if $l->[0] < 0;
-            push @lines, ($self->{indent} x $l->[0]) . $l->[1];
+            my $s = ($self->{indent} x $l->[0]) . $l->[1];
+            if (defined $l->[2]) {
+                my $num_ws = 80 - length($s);
+                $num_ws = 1 if $num_ws < 1;
+                $s .= (" " x $num_ws) . "# $l->[2]";
+            }
+            push @lines, $s;
         }
         $prev_section_level += $self->{_levels}{$s};
     }
@@ -428,36 +447,53 @@ sub handle_args {
     my $v = $self->{_meta}{args};
     return unless $v;
 
+    my $rm = $self->{_args}{remove_internal_properties};
+
+    # validation
+    for my $an (keys %$v) {
+        my $as = $v->{$an};
+        for (keys %$as) {
+            if (/\A_/) {
+                delete $as->{$_} if $rm;
+                next;
+            }
+            # check known arg key
+            die "Unknown arg spec key '$_' for arg '$an'" unless
+                /\A(
+                     summary|description|tags|default_lang|
+                     schema|req|pos|greedy|
+                     completion|
+                     cmdline_aliases|
+                     src|cmdline_src
+                 )(\..+)?\z/x;
+            # XXX actually only summary/description can have .alt.lang.XXX
+
+            # XXX there should only one argument with src=stdin/stdin_or_files.
+
+            # XXX there should not be another argument with req=>1 + pos=>0,
+            # there must not be one if there is argument with src.
+        }
+    }
+
     # normalize schema
     if ($self->{_args}{normalize_schemas}) {
-        for my $k (keys %$v) {
-            if ($v->{$k}{schema}) {
-                $v->{$k}{schema} =
-                    Data::Sah::normalize_schema($v->{$k}{schema});
+        for my $an (keys %$v) {
+            my $as = $v->{$an};
+            if ($as->{schema}) {
+                $as->{schema} =
+                    Data::Sah::normalize_schema($as->{schema});
             }
-            my $al = $v->{$k}{cmdline_aliases};
-            if ($al) {
-                for my $a (keys %$al) {
-                    if ($al->{$a}{schema}) {
-                        $al->{$a}{schema} =
-                            Data::Sah::normalize_schema($al->{$a}{schema});
+            my $als = $as->{cmdline_aliases};
+            if ($als) {
+                for my $al (keys %$als) {
+                    if ($als->{$al}{schema}) {
+                        $als->{$al}{schema} =
+                            Data::Sah::normalize_schema($als->{$al}{schema});
                     }
                 }
             }
         }
     }
-
-    my $rm = $self->{_args}{remove_internal_properties};
-    while (my ($a, $as) = each %$v) {
-        for my $k (keys %$as) {
-            if ($k =~ /^_/) {
-                delete $as->{$k} if $rm;
-            }
-        }
-    }
-
-    # XXX validation not implemented yet
-
 }
 
 # XXX not implemented yet
@@ -571,6 +607,8 @@ sub wrap {
 
     my $comppkg  = $self->{comppkg};
 
+    local $self->{_debug} = $args{debug} // 0;
+
     # add properties from convert, if not yet mentioned in meta
     for (keys %$convert) {
         $meta->{$_} = undef unless exists $meta->{$_};
@@ -599,6 +637,9 @@ sub wrap {
     # reset work variables. we haven't tested this yet because we expect the
     # object to be used only for one-off wrapping, via wrap_sub().
     $self->{_cur_section} = undef;
+    $self->{_cur_handler} = undef;
+    $self->{_cur_handler_args} = undef;
+    $self->{_cur_handler_meta} = undef;
     $self->{_levels} = {};
     $self->{_codes} = {};
 
@@ -620,6 +661,7 @@ sub wrap {
     $props{$_} = 1 for keys %$convert;
 
     my %handler_args;
+    my %handler_metas;
     for my $k0 (keys %props) {
         if ($k0 =~ /^_/) {
             delete $meta->{$k0} if $remove_internal_properties;
@@ -628,9 +670,14 @@ sub wrap {
         my $k = $k0;
         $k =~ s/\..+//;
         next if $handler_args{$k};
+        return [500, "Invalid property name $k"] unless $k =~ /\A\w+\z/;
         my $meth = "handlemeta_$k";
         unless ($self->can($meth)) {
-            return [500, "Can't handle wrapping property $k0 ($meth)"];
+            # try a property module first
+            eval { load "Perinci/Sub/property/$k.pm" };
+            unless ($self->can($meth)) {
+                return [500, "Can't handle wrapping property $k0 ($meth)"];
+            }
         }
         my $hm = $self->$meth;
         next unless defined $hm->{prio};
@@ -644,13 +691,17 @@ sub wrap {
             $ha->{new}   = $convert->{$k0};
             $meta->{$k0} = $convert->{$k0};
         }
-        $handler_args{$k} = $ha;
+        $handler_args{$k}  = $ha;
+        $handler_metas{$k} = $hm;
     }
 
     for my $k (sort {$handler_args{$a}{prio} <=> $handler_args{$b}{prio}}
                    keys %handler_args) {
         my $ha = $handler_args{$k};
         my $meth = $ha->{meth};
+        local $self->{_cur_handler}      = $meth;
+        local $self->{_cur_handler_meta} = $handler_metas{$k};
+        local $self->{_cur_handler_args} = $ha;
         $log->tracef("Calling %s(%s) ...", $meth, $ha);
         $self->$meth(args=>\%args, meta=>$meta, %$ha);
     }
@@ -688,7 +739,7 @@ sub wrap {
     }
 
     my $source = $self->_code_as_str;
-    $log->tracef("wrapper source code: %s", $source);
+    $log->tracef("wrapper source code:\n%s", $source);
     my $result = {source=>$source};
     if ($compile) {
         my $wrapped = eval $source;
@@ -796,6 +847,18 @@ underscore) in the new metadata. Set this to false to keep them.
 
 _
         },
+        debug => {
+            schema => [bool => {default=>0}],
+            summary => 'Generate code with debugging',
+            description => <<'_',
+
+If turned on, will produce various debugging in the generated code. Currently
+what this does:
+
+* add more comments (e.g. for each property handler)
+
+_
+        },
     },
 };
 sub wrap_sub {
@@ -815,7 +878,7 @@ Perinci::Sub::Wrapper - A multi-purpose subroutine wrapping framework
 
 =head1 VERSION
 
-version 0.22
+version 0.23
 
 =head1 SYNOPSIS
 
@@ -876,15 +939,8 @@ The OO interface is only used internally or when you want to extend the wrapper.
 
 L<Perinci>
 
-=head1 DESCRIPTION
-
-
-This module has L<Rinci> metadata.
-
 =head1 FUNCTIONS
 
-
-None are exported by default, but they are exportable.
 
 =head2 wrap_sub(%args) -> [status, msg, result, meta]
 
@@ -911,7 +967,23 @@ Properties to convert to new value.
 
 Not all properties can be converted, but these are a partial list of those that
 can: v (usually do not need to be specified when converting from 1.0 to 1.1,
-will be done automatically), argsI<as, result>naked, default_lang.
+will be done automatically), argsB<as, result>naked, default_lang.
+
+=item * B<debug> => I<bool> (default: 0)
+
+Generate code with debugging.
+
+If turned on, will produce various debugging in the generated code. Currently
+what this does:
+
+=over
+
+=item *
+
+add more comments (e.g. for each property handler)
+
+
+=back
 
 =item * B<meta>* => I<hash>
 
