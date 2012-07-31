@@ -2,7 +2,7 @@ NAME
     Perinci::Sub::Wrapper - A multi-purpose subroutine wrapping framework
 
 VERSION
-    version 0.23
+    version 0.24
 
 SYNOPSIS
      use Perinci::Sub::Wrapper qw(wrap_sub);
@@ -61,7 +61,12 @@ METHODS
 SEE ALSO
     Perinci
 
+DESCRIPTION
+    This module has Rinci metadata.
+
 FUNCTIONS
+    None are exported by default, but they are exportable.
+
   wrap_sub(%args) -> [status, msg, result, meta]
     Wrap subroutine to do various things, like enforcing Rinci properties.
 
@@ -78,14 +83,14 @@ FUNCTIONS
         Can be set to 0 to not actually wrap but just return the generated
         wrapper source code.
 
-    *   convert* => *hash*
+    *   convert => *hash*
 
         Properties to convert to new value.
 
         Not all properties can be converted, but these are a partial list of
         those that can: v (usually do not need to be specified when
-        converting from 1.0 to 1.1, will be done automatically), argsas,
-        resultnaked, default_lang.
+        converting from 1.0 to 1.1, will be done automatically), args*as,
+        result*naked, default_lang.
 
     *   debug => *bool* (default: 0)
 
@@ -147,4 +152,124 @@ COPYRIGHT AND LICENSE
 
     This is free software; you can redistribute it and/or modify it under
     the same terms as the Perl 5 programming language system itself.
+
+CHANGES
+  Version 0.24 (2012-07-31)
+    *   [ENHANCEMENTS] Introduce section: 'before_return_res'.
+
+    *   [INCOMPATIBLE CHANGES] Introduce protocol version which must be
+        specified by all property handlers (assumed to be 1 if unspecified).
+        This is to handle introducing changes at the basic structure of
+        wrapper code which is potentially incompatible with some/lots of
+        existing property handlers.
+
+    *   [INCOMPATIBLE CHANGES] Bump protocol version from 1 to 2: to return
+        result immediately, handler must now say 'goto RETURN_RES' instead
+        of 'return $res' directly. This is so that some handlers get the
+        last chance to do something to $res before it is returned.
+
+  Version 0.23 (2012-07-29)
+    *   [ENHANCEMENTS] When encountering an unknown property, automatically
+        try to require Perinci::Sub::property::PROP first. So you don't have
+        to manually use() the property modules.
+
+    *   [ENHANCEMENTS] Add wrap_sub() argument 'debug' to show debugging in
+        generated code. Currently show the handler from which each line
+        comes from.
+
+    *   [ENHANCEMENTS] Check known arg spec key.
+
+  Version 0.22 (2012-06-21)
+    *   features: Require transaction ('-tx_manager' argument) if
+        features->{tx}{req} is 1.
+
+  Version 0.21 (2012-06-07)
+    *   [FIXES] deps: '-undo_trash_dir' argument is not needed when
+        '-tx_manager' argument is given.
+
+  Version 0.20 (2012-06-07)
+    *   Update to Rinci 1.1.18 (some new deps introduced: 'tmp_dir',
+
+    *   'trash_dir', 'undo_trash_dir'; some removed: 'undo_storage').
+
+  Version 0.19 (2012-03-22)
+    *   [ENHANCEMENTS] 'default_lang' also converts language properties in
+        tag metadata in 'tags'.
+
+  Version 0.18 (2012-03-21)
+    *   No functional changes. Rebuild with Perinci PodWeaver plugin
+        enabled.
+
+  Version 0.17 (2012-03-21)
+    *   [ENHANCEMENTS] Convert 'default_lang' property.
+
+    *   [ENHANCEMENTS] 'remove_internal_properties' now also removes
+        internal properties in 'result', 'examples', and 'links'.
+
+  Version 0.16 (2012-03-16)
+    *   [ENHANCEMENTS] Convert 1.0 - 1.1: Set argument spec's summary from
+        argument schema.
+
+  Version 0.15 (2012-02-28)
+    *   [NEW FEATURES] Handle 'cmdline_aliases' (Rinci 1.1.8+)
+
+    *   [NEW FEATURES] Convert 1.0 'arg_aliases' to 'cmdline_aliases'
+
+    *   [NEW FEATURES] Add 'remove_internal_properties' wrap option.
+
+  Version 0.14 (2012-02-23)
+    *   [NEW FEATURES] Automatically convert metadata v1.0 to v1.1. Finally
+        all the old Sub::Spec specs are now usable again.
+
+  Version 0.13 (2012-02-22)
+    *   [NEW FEATURES] Sah schemas in 'args' and 'result' are now normalized
+        in the new metadata, this is to make it simpler for other code to
+        use the schema (e.g. Perinci-Access when completing args). New
+        metadata is now a deep clone of the old (instead of just a shallow
+        copy), this might increase memory usage.
+
+  Version 0.12 (2012-02-15)
+    *   [REMOVED FEATURES] Remove 'force' argument. wrap_sub() still mark
+        wrapping by blessing the generated wrapper, but will gladly double
+        wrap. I believe caching should be done in the upper layers.
+
+  Version 0.11 (2012-02-13)
+    *   [ETC] Add tweak to work better with 'retry' property wrapper.
+
+  Version 0.10 (2012-02-13)
+    *   [NEW FEATURES] Add wrap option 'compile'.
+
+  Version 0.09 (2012-02-13)
+    *   [BUG FIXES] Fix indenting in generated code.
+
+  Version 0.08 (2012-02-12)
+    *   [BUG FIXES] Convert keys are now respected even though meta does not
+        have that key.
+
+  Version 0.07 (2012-02-12)
+    *   Add (or re-enable) unshift_lines()
+
+    *   Extract test routine to Test::Perinci::Sub::Wrapper to make it
+        usable from other Perinci-Sub-property-* distributions.
+
+  Version 0.06 (2012-02-12)
+    *   Rename distribution from Sub-Spec-Wrapper to Perinci-Sub-Wrapper.
+
+  Version 0.05 (2012-01-21)
+    *   No functional changes. Mark Sub-Spec-Wrapper deprecated.
+
+  Version 0.04 (2011-10-19)
+    *   No functional changes. Add missing dependency to
+
+    *   Sub::Spec::ConvertArgs::Array [thanks cpant & Andreas].
+
+  Version 0.03 (2011-09-22)
+    *   [ENHANCEMENTS] Support 'args_as' spec clause
+        (hash/hashref/array/arrayref supported, but object not yet).
+
+  Version 0.02 (2011-08-31)
+    *   Build and POD fixes.
+
+  Version 0.01 (2011-08-31)
+    *   First release.
 

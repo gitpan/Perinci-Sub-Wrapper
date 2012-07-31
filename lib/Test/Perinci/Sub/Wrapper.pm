@@ -10,7 +10,7 @@ use Test::More 0.96;
 our @ISA = qw(Exporter);
 our @EXPORT_OK = qw(test_wrap);
 
-our $VERSION = '0.23'; # VERSION
+our $VERSION = '0.24'; # VERSION
 
 sub test_wrap {
     my %test_args = @_;
@@ -31,7 +31,8 @@ sub test_wrap {
         if (defined $test_args{wrap_status}) {
             is(ref($wrap_res), 'ARRAY', 'wrap res is array');
             is($wrap_res->[0], $test_args{wrap_status},
-               "wrap status is $test_args{wrap_status}");
+               "wrap status is $test_args{wrap_status}")
+                or diag "wrap res: ", explain($wrap_res);
         }
 
         return unless $wrap_res->[0] == 200;
@@ -82,9 +83,17 @@ Test::Perinci::Sub::Wrapper - Provide test_wrap() to test wrapper
 
 =head1 VERSION
 
-version 0.23
+version 0.24
+
+=head1 DESCRIPTION
+
+
+This module has L<Rinci> metadata.
 
 =head1 FUNCTIONS
+
+
+None are exported by default, but they are exportable.
 
 =head1 AUTHOR
 

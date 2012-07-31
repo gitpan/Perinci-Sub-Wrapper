@@ -10,9 +10,15 @@ require Exporter;
 our @ISA = qw(Exporter);
 our @EXPORT_OK = qw(wrap_sub);
 
-our $VERSION = '0.23'; # VERSION
+our $VERSION = '0.24'; # VERSION
 
 our %SPEC;
+
+# "protocol version" (v). whenever there's a significant change in the basic
+# structure of the wrapper, which potentially cause some/a lot of property
+# handlers to stop working, we increase this. property handler must always state
+# which version it follows in its meta. if unspecified, it's assumed to be 1.
+our $protocol_version = 2;
 
 sub new {
     my ($class, %args) = @_;
@@ -30,7 +36,7 @@ sub __squote {
 }
 
 sub _known_sections {
-    state $v = {
+    state $val = {
         # reserved by wrapper for setting Perl package and declaring 'sub {'
         OPEN_SUB => {order=>0},
 
@@ -64,10 +70,13 @@ sub _known_sections {
         # for handlers to put checks against $eval_err
         after_eval => {order=>80},
 
+        # for handlers that want to do something with $res for the last time
+        before_return_res => {order=>85},
+
         # reserved for returning '$res' and the sub closing '}' line
         CLOSE_SUB => {order=>90},
     };
-    $v;
+    $val;
 }
 
 sub section_empty {
@@ -96,7 +105,7 @@ sub _errif {
         '$res = ' . (
             $self->{_meta}{result_naked} ?
                 'undef' : "[$c_status, $c_msg]") . ';',
-        'return $res;');
+        'goto RETURN_RES;');
     $self->unindent;
     $self->push_lines('}');
 }
@@ -143,7 +152,7 @@ sub push_lines {
         for my $l (@lines) {
             $l->[2] =
                 $self->{_cur_handler} ?
-                    "$self->{_cur_handler}"
+                    "$self->{_cur_handler} p=".$self->{_cur_handler_meta}{prio}
                         : "";
         }
     }
@@ -178,7 +187,7 @@ sub _code_as_str {
     join "\n", @lines;
 }
 
-sub handlemeta_v { {prio=>0.1, convert=>1} }
+sub handlemeta_v { {v=>2, prio=>0.1, convert=>1} }
 sub handle_v {
     my ($self, %args) = @_;
 
@@ -248,7 +257,7 @@ sub handle_v {
 }
 
 # before all the other language properties (summary, description, ...)
-sub handlemeta_default_lang { {prio=>0.9, convert=>1} }
+sub handlemeta_default_lang { {v=>2, prio=>0.9, convert=>1} }
 sub handle_default_lang {
     my ($self, %args) = @_;
 
@@ -287,7 +296,7 @@ sub handlemeta_summary { {} }
 sub handlemeta_description { {} }
 sub handlemeta_tags { {} }
 
-sub handlemeta_links { {prio=>5} }
+sub handlemeta_links { {v=>2, prio=>5} }
 sub handle_links {
     my ($self, %args) = @_;
 
@@ -309,7 +318,7 @@ sub handlemeta_is_func { {} }
 sub handlemeta_is_meth { {} }
 sub handlemeta_is_class_meth { {} }
 
-sub handlemeta_examples { {prio=>5} }
+sub handlemeta_examples { {v=>2, prio=>5} }
 sub handle_examples {
     my ($self, %args) = @_;
 
@@ -327,7 +336,7 @@ sub handle_examples {
 }
 
 # after args
-sub handlemeta_features { {prio=>15} }
+sub handlemeta_features { {v=>2, prio=>15} }
 sub handle_features {
     my ($self, %args) = @_;
 
@@ -349,7 +358,7 @@ sub handle_features {
 }
 
 # run before args
-sub handlemeta_args_as { {prio=>1, convert=>1} }
+sub handlemeta_args_as { {v=>2, prio=>1, convert=>1} }
 sub handle_args_as {
     my ($self, %args) = @_;
 
@@ -438,7 +447,7 @@ sub handle_args_as {
     $self->{_args_token} = $tok;
 }
 
-sub handlemeta_args { {prio=>10, convert=>0} }
+sub handlemeta_args { {v=>2, prio=>10, convert=>0} }
 sub handle_args {
     require Data::Sah;
 
@@ -497,7 +506,7 @@ sub handle_args {
 }
 
 # XXX not implemented yet
-sub handlemeta_result { {prio=>50, convert=>0} }
+sub handlemeta_result { {v=>2, prio=>50, convert=>0} }
 sub handle_result {
     require Data::Sah;
 
@@ -523,7 +532,7 @@ sub handle_result {
     # XXX validation not implemented yet
 }
 
-sub handlemeta_result_naked { {prio=>90, convert=>1} }
+sub handlemeta_result_naked { {v=>2, prio=>90, convert=>1} }
 sub handle_result_naked {
     my ($self, %args) = @_;
 
@@ -545,7 +554,7 @@ sub handle_result_naked {
     }
 }
 
-sub handlemeta_deps { {prio=>0.5} }
+sub handlemeta_deps { {v=>2, prio=>0.5} }
 sub handle_deps {
     my ($self, %args) = @_;
     my $value = $args{value};
@@ -566,12 +575,12 @@ sub handle_deps {
     if ($value->{tmp_dir}) {
         $self->push_lines(
             'unless ($args{-tmp_dir}) { $res = [412, "Dep failed: '.
-                'please specify -tmp_dir"]; return $res }');
+                'please specify -tmp_dir"]; goto RETURN_RES }');
     }
     if ($value->{trash_dir}) {
         $self->push_lines(
             'unless ($args{-trash_dir}) { $res = [412, "Dep failed: '.
-                'please specify -trash_dir"]; return $res }');
+                'please specify -trash_dir"]; goto RETURN_RES }');
     }
     if ($value->{undo_trash_dir}) {
         $self->push_lines(join(
@@ -579,7 +588,7 @@ sub handle_deps {
             'unless ($args{-undo_trash_dir} || $args{-tx_manager} || ',
             '$args{-undo_action} && $args{-undo_action}=~/\A(?:undo|redo)\z/) ',
             '{ $res = [412, "Dep failed: ',
-            'please specify -undo_trash_dir"]; return $res }'
+            'please specify -undo_trash_dir"]; goto RETURN_RES }'
         ));
     }
 }
@@ -680,7 +689,11 @@ sub wrap {
             }
         }
         my $hm = $self->$meth;
+        $hm->{v} //= 1;
         next unless defined $hm->{prio};
+        die "Please update property handler $k which is still at v=$hm->{v} ".
+            "(needs v=$protocol_version)"
+                unless $hm->{v} == $protocol_version;
         my $ha = {
             prio=>$hm->{prio}, value=>$meta->{$k0}, property=>$k0,
             meth=>"handle_$k",
@@ -694,6 +707,9 @@ sub wrap {
         $handler_args{$k}  = $ha;
         $handler_metas{$k} = $hm;
     }
+
+    $self->select_section('before_return_res');
+    $self->push_lines('RETURN_RES:');
 
     for my $k (sort {$handler_args{$a}{prio} <=> $handler_args{$b}{prio}}
                    keys %handler_args) {
@@ -724,7 +740,7 @@ sub wrap {
 
     # return result
     $self->select_section('CLOSE_SUB');
-    $self->push_lines('$res;');
+    $self->push_lines('return $res;');
     $self->unindent;
     $self->push_lines('}');
 
@@ -878,7 +894,7 @@ Perinci::Sub::Wrapper - A multi-purpose subroutine wrapping framework
 
 =head1 VERSION
 
-version 0.23
+version 0.24
 
 =head1 SYNOPSIS
 
@@ -939,8 +955,15 @@ The OO interface is only used internally or when you want to extend the wrapper.
 
 L<Perinci>
 
+=head1 DESCRIPTION
+
+
+This module has L<Rinci> metadata.
+
 =head1 FUNCTIONS
 
+
+None are exported by default, but they are exportable.
 
 =head2 wrap_sub(%args) -> [status, msg, result, meta]
 
@@ -961,13 +984,13 @@ Whether to compile the generated wrapper.
 Can be set to 0 to not actually wrap but just return the generated wrapper
 source code.
 
-=item * B<convert>* => I<hash>
+=item * B<convert> => I<hash>
 
 Properties to convert to new value.
 
 Not all properties can be converted, but these are a partial list of those that
 can: v (usually do not need to be specified when converting from 1.0 to 1.1,
-will be done automatically), argsB<as, result>naked, default_lang.
+will be done automatically), argsI<as, result>naked, default_lang.
 
 =item * B<debug> => I<bool> (default: 0)
 
@@ -1032,6 +1055,292 @@ This software is copyright (c) 2012 by Steven Haryanto.
 
 This is free software; you can redistribute it and/or modify it under
 the same terms as the Perl 5 programming language system itself.
+
+=head1 CHANGES
+
+=head2 Version 0.24 (2012-07-31)
+
+=over 4
+
+=item *
+
+[ENHANCEMENTS] Introduce section: 'before_return_res'.
+
+=back
+
+=over 4
+
+=item *
+
+[INCOMPATIBLE CHANGES] Introduce protocol version which must be specified by all property handlers (assumed to be 1 if unspecified). This is to handle introducing changes at the basic structure of wrapper code which is potentially incompatible with some/lots of existing property handlers.
+
+=item *
+
+[INCOMPATIBLE CHANGES] Bump protocol version from 1 to 2: to return result immediately, handler must now say 'goto RETURN_RES' instead of 'return $res' directly. This is so that some handlers get the last chance to do something to $res before it is returned.
+
+=back
+
+=head2 Version 0.23 (2012-07-29)
+
+=over 4
+
+=item *
+
+[ENHANCEMENTS] When encountering an unknown property, automatically try to require Perinci::Sub::property::PROP first. So you don't have to manually use() the property modules.
+
+=item *
+
+[ENHANCEMENTS] Add wrap_sub() argument 'debug' to show debugging in generated code. Currently show the handler from which each line comes from.
+
+=item *
+
+[ENHANCEMENTS] Check known arg spec key.
+
+=back
+
+=head2 Version 0.22 (2012-06-21)
+
+=over 4
+
+=item *
+
+features: Require transaction ('-tx_manager' argument) if features->{tx}{req} is 1.
+
+=back
+
+=head2 Version 0.21 (2012-06-07)
+
+=over 4
+
+=item *
+
+[FIXES] deps: '-undo_trash_dir' argument is not needed when '-tx_manager' argument is given.
+
+=back
+
+=head2 Version 0.20 (2012-06-07)
+
+=over 4
+
+=item *
+
+Update to Rinci 1.1.18 (some new deps introduced: 'tmp_dir',
+
+=item *
+
+'trash_dir', 'undo_trash_dir'; some removed: 'undo_storage').
+
+=back
+
+=head2 Version 0.19 (2012-03-22)
+
+=over 4
+
+=item *
+
+[ENHANCEMENTS] 'default_lang' also converts language properties in tag metadata in 'tags'.
+
+=back
+
+=head2 Version 0.18 (2012-03-21)
+
+=over 4
+
+=item *
+
+No functional changes. Rebuild with Perinci PodWeaver plugin enabled.
+
+=back
+
+=head2 Version 0.17 (2012-03-21)
+
+=over 4
+
+=item *
+
+[ENHANCEMENTS] Convert 'default_lang' property.
+
+=item *
+
+[ENHANCEMENTS] 'remove_internal_properties' now also removes internal properties in 'result', 'examples', and 'links'.
+
+=back
+
+=head2 Version 0.16 (2012-03-16)
+
+=over 4
+
+=item *
+
+[ENHANCEMENTS] Convert 1.0 - 1.1: Set argument spec's summary from argument schema.
+
+=back
+
+=head2 Version 0.15 (2012-02-28)
+
+=over 4
+
+=item *
+
+[NEW FEATURES] Handle 'cmdline_aliases' (Rinci 1.1.8+)
+
+=item *
+
+[NEW FEATURES] Convert 1.0 'arg_aliases' to 'cmdline_aliases'
+
+=item *
+
+[NEW FEATURES] Add 'remove_internal_properties' wrap option.
+
+=back
+
+=head2 Version 0.14 (2012-02-23)
+
+=over 4
+
+=item *
+
+[NEW FEATURES] Automatically convert metadata v1.0 to v1.1. Finally all the old Sub::Spec specs are now usable again.
+
+=back
+
+=head2 Version 0.13 (2012-02-22)
+
+=over 4
+
+=item *
+
+[NEW FEATURES] Sah schemas in 'args' and 'result' are now normalized in the new metadata, this is to make it simpler for other code to use the schema (e.g. Perinci-Access when completing args). New metadata is now a deep clone of the old (instead of just a shallow copy), this might increase memory usage.
+
+=back
+
+=head2 Version 0.12 (2012-02-15)
+
+=over 4
+
+=item *
+
+[REMOVED FEATURES] Remove 'force' argument. wrap_sub() still mark wrapping by blessing the generated wrapper, but will gladly double wrap. I believe caching should be done in the upper layers.
+
+=back
+
+=head2 Version 0.11 (2012-02-13)
+
+=over 4
+
+=item *
+
+[ETC] Add tweak to work better with 'retry' property wrapper.
+
+=back
+
+=head2 Version 0.10 (2012-02-13)
+
+=over 4
+
+=item *
+
+[NEW FEATURES] Add wrap option 'compile'.
+
+=back
+
+=head2 Version 0.09 (2012-02-13)
+
+=over 4
+
+=item *
+
+[BUG FIXES] Fix indenting in generated code.
+
+=back
+
+=head2 Version 0.08 (2012-02-12)
+
+=over 4
+
+=item *
+
+[BUG FIXES] Convert keys are now respected even though meta does not have that key.
+
+=back
+
+=head2 Version 0.07 (2012-02-12)
+
+=over 4
+
+=item *
+
+Add (or re-enable) unshift_lines()
+
+=item *
+
+Extract test routine to Test::Perinci::Sub::Wrapper to make it usable from other Perinci-Sub-property-* distributions.
+
+=back
+
+=head2 Version 0.06 (2012-02-12)
+
+=over 4
+
+=item *
+
+Rename distribution from Sub-Spec-Wrapper to Perinci-Sub-Wrapper.
+
+=back
+
+=head2 Version 0.05 (2012-01-21)
+
+=over 4
+
+=item *
+
+No functional changes. Mark Sub-Spec-Wrapper deprecated.
+
+=back
+
+=head2 Version 0.04 (2011-10-19)
+
+=over 4
+
+=item *
+
+No functional changes. Add missing dependency to
+
+=item *
+
+Sub::Spec::ConvertArgs::Array [thanks cpant & Andreas].
+
+=back
+
+=head2 Version 0.03 (2011-09-22)
+
+=over 4
+
+=item *
+
+[ENHANCEMENTS] Support 'args_as' spec clause (hash/hashref/array/arrayref supported, but object not yet).
+
+=back
+
+=head2 Version 0.02 (2011-08-31)
+
+=over 4
+
+=item *
+
+Build and POD fixes.
+
+=back
+
+=head2 Version 0.01 (2011-08-31)
+
+=over 4
+
+=item *
+
+First release.
+
+=back
 
 =cut
 
