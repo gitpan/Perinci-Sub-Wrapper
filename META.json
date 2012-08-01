@@ -30,6 +30,7 @@
             "Data::Sah" : "0.02",
             "Log::Any" : 0,
             "Perinci::Sub::DepChecker" : "0.06",
+            "Perinci::Util" : "0.25",
             "Rinci" : "v1.1.18",
             "perl" : "5.010000"
          }
@@ -47,6 +48,6 @@
          "url" : "http://github.com/sharyanto/perl-Perinci-Sub-Wrapper"
       }
    },
-   "version" : "0.25"
+   "version" : "0.26"
 }
 

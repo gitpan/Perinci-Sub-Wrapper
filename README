@@ -2,7 +2,7 @@ NAME
     Perinci::Sub::Wrapper - A multi-purpose subroutine wrapping framework
 
 VERSION
-    version 0.25
+    version 0.26
 
 SYNOPSIS
      use Perinci::Sub::Wrapper qw(wrap_sub);
@@ -66,6 +66,50 @@ DESCRIPTION
 
 FUNCTIONS
     None are exported by default, but they are exportable.
+
+  wrap_all_subs(%args) -> [status, msg, result, meta]
+    Wrap all subroutines in a package and replace them with the wrapped
+    version.
+
+    This function will search all subroutines in a package which have
+    metadata, wrap them, then replace the original subroutines and metadata
+    with the wrapped version.
+
+    One common use case is to put something like this at the bottom of your
+    module:
+
+        Perinci::Sub::Wrapper::wrap_all_subs();
+
+    to wrap ("protect") all your module's subroutines and discard the
+    original unwrapped version.
+
+    Arguments ('*' denotes required arguments):
+
+    *   package => *str*
+
+        Package to search subroutines in.
+
+        Default is caller package.
+
+    *   wrap_args => *hash*
+
+        Arguments to pass to wrap_sub().
+
+        Each subroutine will be wrapped by wrap*sub(). This argument
+        specifies what arguments to pass to wrap*sub().
+
+        Note: If you need different arguments for different subroutine,
+        perhaps this function is not for you. You can perform your own loop
+        and wrap_sub().
+
+    Return value:
+
+    Returns an enveloped result (an array). First element (status) is an
+    integer containing HTTP status code (200 means OK, 4xx caller error, 5xx
+    function error). Second element (msg) is a string containing error
+    message, or 'OK' if status is 200. Third element (result) is optional,
+    the actual result. Fourth element (meta) is called result metadata and
+    is optional, a hash that contains extra information.
 
   wrap_sub(%args) -> [status, msg, result, meta]
     Wrap subroutine to do various things, like enforcing Rinci properties.
@@ -174,6 +218,9 @@ COPYRIGHT AND LICENSE
     the same terms as the Perl 5 programming language system itself.
 
 CHANGES
+  Version 0.26 (2012-08-01)
+    *   [ENHANCEMENTS] Add wrap_all_subs().
+
   Version 0.25 (2012-07-31)
     *   [ENHANCEMENTS] Add argument: sub_name (also so that 'dies_on_error'
         property can display proper die message showing subroutine name).

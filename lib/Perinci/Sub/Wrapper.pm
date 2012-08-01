@@ -5,12 +5,14 @@ use strict;
 use warnings;
 use Log::Any '$log';
 
+use Perinci::Util qw(get_package_meta_accessor);
 use Module::Load;
+
 require Exporter;
 our @ISA = qw(Exporter);
-our @EXPORT_OK = qw(wrap_sub);
+our @EXPORT_OK = qw(wrap_sub wrap_all_subs);
 
-our $VERSION = '0.25'; # VERSION
+our $VERSION = '0.26'; # VERSION
 
 our %SPEC;
 
@@ -917,6 +919,106 @@ sub wrap_sub {
     __PACKAGE__->new->wrap(@_);
 }
 
+$SPEC{wrap_all_subs} = {
+    v => 1.1,
+    summary => 'Wrap all subroutines in a package '.
+        'and replace them with the wrapped version',
+    description => <<'_',
+
+This function will search all subroutines in a package which have metadata, wrap
+them, then replace the original subroutines and metadata with the wrapped
+version.
+
+One common use case is to put something like this at the bottom of your module:
+
+    Perinci::Sub::Wrapper::wrap_all_subs();
+
+to wrap ("protect") all your module's subroutines and discard the original
+unwrapped version.
+
+_
+    args => {
+        package => {
+            schema => 'str*',
+            summary => 'Package to search subroutines in',
+            description => <<'_',
+
+Default is caller package.
+
+_
+        },
+        wrap_args => {
+            schema => 'hash*',
+            summary => 'Arguments to pass to wrap_sub()',
+            description => <<'_',
+
+Each subroutine will be wrapped by wrap_sub(). This argument specifies what
+arguments to pass to wrap_sub().
+
+Note: If you need different arguments for different subroutine, perhaps this
+function is not for you. You can perform your own loop and wrap_sub().
+
+_
+        },
+    },
+    result => {
+        summary => 'The original unwrapped subroutines and their metadata',
+        description => <<'_',
+
+Example:
+
+    {
+        func1 => {orig_sub=>..., orig_meta=>{...}},
+        func2 => {orig_sub=>..., orig_meta=>{...}},
+        ...
+    }
+
+If you need to restore the original subroutines (unwrap), save this somewhere.
+Otherwise, you can discard this.
+
+_
+        schema=>'hash*',
+    },
+};
+sub wrap_all_subs {
+    my %args      = @_;
+    my @caller    = caller(0);
+    my $package   = $args{package}   // $caller[0];
+    my $wrap_args = $args{wrap_args} // {};
+
+    my $res = get_package_meta_accessor(package=>$package);
+    return [500, "Can't get meta accessor: $res->[0] - $res->[1]"]
+        unless $res->[0] == 200;
+    my $ma = $res->[2];
+
+    my $recap = {};
+
+    no strict 'refs';
+
+    my $metas = $ma->get_all_meta($package);
+    for my $f (keys %$metas) {
+        next unless $f =~ /\A\w+\z/;
+        my $osub  = \&{"$package\::$f"};
+        my $ometa = $metas->{$f};
+        $recap->{$f} = {orig_sub => $osub, orig_meta => $ometa};
+        $res = wrap_sub(%$wrap_args, sub => $osub, meta => $ometa);
+        return [500, "Can't wrap $package\::$f: $res->[0] - $res->[1]"]
+            unless $res->[0] == 200;
+        $recap->{$f}{new_sub}  = $res->[2]{sub};
+        $recap->{$f}{new_meta} = $res->[2]{meta};
+    }
+
+    no warnings 'redefine';
+
+    # replace the originals
+    for my $f (keys %$recap) {
+        *{"$package\::$f"} = $recap->{$f}{new_sub};
+        $ma->set_meta($package, $f, $recap->{$f}{new_meta});
+    }
+
+    [200, "OK", $recap];
+}
+
 1;
 # ABSTRACT: A multi-purpose subroutine wrapping framework
 
@@ -930,7 +1032,7 @@ Perinci::Sub::Wrapper - A multi-purpose subroutine wrapping framework
 
 =head1 VERSION
 
-version 0.25
+version 0.26
 
 =head1 SYNOPSIS
 
@@ -960,7 +1062,7 @@ There are many other possible uses.
 
 This module uses L<Log::Any> for logging.
 
-=for Pod::Coverage ^(new|handle(meta)?_.+|convert(meta)?_.+|wrap|add_.+|section_empty|indent|unindent|select_section|push_lines)$
+=for Pod::Coverage ^(new|handle(meta)?_.+|wrap|add_.+|section_empty|indent|unindent|select_section|push_lines)$
 
 =head1 EXTENDING
 
@@ -1000,6 +1102,47 @@ This module has L<Rinci> metadata.
 
 
 None are exported by default, but they are exportable.
+
+=head2 wrap_all_subs(%args) -> [status, msg, result, meta]
+
+Wrap all subroutines in a package and replace them with the wrapped version.
+
+This function will search all subroutines in a package which have metadata, wrap
+them, then replace the original subroutines and metadata with the wrapped
+version.
+
+One common use case is to put something like this at the bottom of your module:
+
+    Perinci::Sub::Wrapper::wrap_all_subs();
+
+to wrap ("protect") all your module's subroutines and discard the original
+unwrapped version.
+
+Arguments ('*' denotes required arguments):
+
+=over 4
+
+=item * B<package> => I<str>
+
+Package to search subroutines in.
+
+Default is caller package.
+
+=item * B<wrap_args> => I<hash>
+
+Arguments to pass to wrap_sub().
+
+Each subroutine will be wrapped by wrapI<sub(). This argument specifies what
+arguments to pass to wrap>sub().
+
+Note: If you need different arguments for different subroutine, perhaps this
+function is not for you. You can perform your own loop and wrap_sub().
+
+=back
+
+Return value:
+
+Returns an enveloped result (an array). First element (status) is an integer containing HTTP status code (200 means OK, 4xx caller error, 5xx function error). Second element (msg) is a string containing error message, or 'OK' if status is 200. Third element (result) is optional, the actual result. Fourth element (meta) is called result metadata and is optional, a hash that contains extra information.
 
 =head2 wrap_sub(%args) -> [status, msg, result, meta]
 
@@ -1111,6 +1254,16 @@ This is free software; you can redistribute it and/or modify it under
 the same terms as the Perl 5 programming language system itself.
 
 =head1 CHANGES
+
+=head2 Version 0.26 (2012-08-01)
+
+=over 4
+
+=item *
+
+[ENHANCEMENTS] Add wrap_all_subs().
+
+=back
 
 =head2 Version 0.25 (2012-07-31)
 
