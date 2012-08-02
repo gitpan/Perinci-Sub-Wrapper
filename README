@@ -2,7 +2,7 @@ NAME
     Perinci::Sub::Wrapper - A multi-purpose subroutine wrapping framework
 
 VERSION
-    version 0.26
+    version 0.27
 
 SYNOPSIS
      use Perinci::Sub::Wrapper qw(wrap_sub);
@@ -218,6 +218,11 @@ COPYRIGHT AND LICENSE
     the same terms as the Perl 5 programming language system itself.
 
 CHANGES
+  Version 0.27 (2012-08-02)
+    *   No functional changes. Update to new Perinci::Role::MetaAccessor
+
+    *   interface (0.26).
+
   Version 0.26 (2012-08-01)
     *   [ENHANCEMENTS] Add wrap_all_subs().
 

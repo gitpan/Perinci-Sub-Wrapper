@@ -18,6 +18,7 @@ requires:
   Data::Clone: 0
   Data::Sah: 0.02
   Log::Any: 0
+  Perinci::MetaAccessor::Default: 0.26
   Perinci::Sub::DepChecker: 0.06
   Perinci::Util: 0.25
   Rinci: 1.1.18
@@ -25,4 +26,4 @@ requires:
 resources:
   homepage: http://search.cpan.org/dist/Perinci-Sub-Wrapper/
   repository: http://github.com/sharyanto/perl-Perinci-Sub-Wrapper
-version: 0.26
+version: 0.27

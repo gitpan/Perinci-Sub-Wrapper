@@ -12,7 +12,7 @@ require Exporter;
 our @ISA = qw(Exporter);
 our @EXPORT_OK = qw(wrap_sub wrap_all_subs);
 
-our $VERSION = '0.26'; # VERSION
+our $VERSION = '0.27'; # VERSION
 
 our %SPEC;
 
@@ -995,7 +995,7 @@ sub wrap_all_subs {
 
     no strict 'refs';
 
-    my $metas = $ma->get_all_meta($package);
+    my $metas = $ma->get_all_metas($package);
     for my $f (keys %$metas) {
         next unless $f =~ /\A\w+\z/;
         my $osub  = \&{"$package\::$f"};
@@ -1032,7 +1032,7 @@ Perinci::Sub::Wrapper - A multi-purpose subroutine wrapping framework
 
 =head1 VERSION
 
-version 0.26
+version 0.27
 
 =head1 SYNOPSIS
 
@@ -1254,6 +1254,20 @@ This is free software; you can redistribute it and/or modify it under
 the same terms as the Perl 5 programming language system itself.
 
 =head1 CHANGES
+
+=head2 Version 0.27 (2012-08-02)
+
+=over 4
+
+=item *
+
+No functional changes. Update to new Perinci::Role::MetaAccessor
+
+=item *
+
+interface (0.26).
+
+=back
 
 =head2 Version 0.26 (2012-08-01)
 
