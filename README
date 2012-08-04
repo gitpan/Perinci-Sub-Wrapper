@@ -2,7 +2,7 @@ NAME
     Perinci::Sub::Wrapper - A multi-purpose subroutine wrapping framework
 
 VERSION
-    version 0.27
+    version 0.28
 
 SYNOPSIS
      use Perinci::Sub::Wrapper qw(wrap_sub);
@@ -208,6 +208,20 @@ FUNCTIONS
     the actual result. Fourth element (meta) is called result metadata and
     is optional, a hash that contains extra information.
 
+  wrapped() -> bool
+    Check whether we are wrapped.
+
+    This function is to be run inside a subroutine to check if *that*
+    subroutine is wrapped by Perinci::Sub::Wrapper. For example:
+
+        sub some_sub {
+            print "I'm wrapped" if wrapped();
+        }
+
+    No arguments.
+
+    Return value:
+
 AUTHOR
     Steven Haryanto <stevenharyanto@gmail.com>
 
@@ -218,6 +232,9 @@ COPYRIGHT AND LICENSE
     the same terms as the Perl 5 programming language system itself.
 
 CHANGES
+  Version 0.28 (2012-08-04)
+    *   Add wrapped() function.
+
   Version 0.27 (2012-08-02)
     *   No functional changes. Update to new Perinci::Role::MetaAccessor
 

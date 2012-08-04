@@ -5,14 +5,14 @@ use strict;
 use warnings;
 use Log::Any '$log';
 
-use Perinci::Util qw(get_package_meta_accessor);
 use Module::Load;
+use Perinci::Util qw(get_package_meta_accessor);
+use Scalar::Util qw(blessed);
 
-require Exporter;
-our @ISA = qw(Exporter);
-our @EXPORT_OK = qw(wrap_sub wrap_all_subs);
+use Exporter qw(import);
+our @EXPORT_OK = qw(wrap_sub wrap_all_subs wrapped);
 
-our $VERSION = '0.27'; # VERSION
+our $VERSION = '0.28'; # VERSION
 
 our %SPEC;
 
@@ -22,9 +22,11 @@ our %SPEC;
 # which version it follows in its meta. if unspecified, it's assumed to be 1.
 our $protocol_version = 2;
 
+my $default_wrapped_package = 'Perinci::Sub::Wrapped';
+
 sub new {
     my ($class, %args) = @_;
-    $args{comppkg} //= "Perinci::Sub::Wrapped";
+    $args{comppkg} //= $default_wrapped_package;
     $args{indent}  //= " " x 4;
     bless \%args, $class;
 }
@@ -473,7 +475,7 @@ sub handle_args {
                      schema|req|pos|greedy|
                      completion|
                      cmdline_aliases|
-                     src|cmdline_src
+                     cmdline_src
                  )(\..+)?\z/x;
             # XXX actually only summary/description can have .alt.lang.XXX
 
@@ -1019,6 +1021,44 @@ sub wrap_all_subs {
     [200, "OK", $recap];
 }
 
+$SPEC{wrapped} = {
+    v => 1.1,
+    summary => 'Check whether we are wrapped',
+    description => <<'_',
+
+This function is to be run inside a subroutine to check if *that* subroutine is
+wrapped by Perinci::Sub::Wrapper. For example:
+
+    sub some_sub {
+        print "I'm wrapped" if wrapped();
+    }
+
+_
+    args => {
+    },
+    args_as => 'array',
+    result => {
+        schema=>'bool*',
+    },
+    result_naked => 1,
+};
+sub wrapped {
+    no strict 'refs';
+
+    # should i check whether *i* am wrapped first? because that would throw off
+    # the stack counting.
+
+    my @c1 = caller(1); # we want to check our *caller's* caller
+    my @c2 = caller(2); # and its caller
+
+    # XXX wrapper can actually wrap into another package
+
+    my $p = $default_wrapped_package;
+
+    $c1[0] eq $p && $c1[1] =~ /^\(eval/ && $c1[4] &&
+        $c2[0] eq $p && $c2[1] =~ /^\(eval/ && $c2[3] eq '(eval)' && !$c2[4];
+}
+
 1;
 # ABSTRACT: A multi-purpose subroutine wrapping framework
 
@@ -1032,7 +1072,7 @@ Perinci::Sub::Wrapper - A multi-purpose subroutine wrapping framework
 
 =head1 VERSION
 
-version 0.27
+version 0.28
 
 =head1 SYNOPSIS
 
@@ -1242,6 +1282,21 @@ Return value:
 
 Returns an enveloped result (an array). First element (status) is an integer containing HTTP status code (200 means OK, 4xx caller error, 5xx function error). Second element (msg) is a string containing error message, or 'OK' if status is 200. Third element (result) is optional, the actual result. Fourth element (meta) is called result metadata and is optional, a hash that contains extra information.
 
+=head2 wrapped() -> bool
+
+Check whether we are wrapped.
+
+This function is to be run inside a subroutine to check if I<that> subroutine is
+wrapped by Perinci::Sub::Wrapper. For example:
+
+    sub some_sub {
+        print "I'm wrapped" if wrapped();
+    }
+
+No arguments.
+
+Return value:
+
 =head1 AUTHOR
 
 Steven Haryanto <stevenharyanto@gmail.com>
@@ -1254,6 +1309,16 @@ This is free software; you can redistribute it and/or modify it under
 the same terms as the Perl 5 programming language system itself.
 
 =head1 CHANGES
+
+=head2 Version 0.28 (2012-08-04)
+
+=over 4
+
+=item *
+
+Add wrapped() function.
+
+=back
 
 =head2 Version 0.27 (2012-08-02)
 
