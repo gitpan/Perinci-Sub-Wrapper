@@ -2,7 +2,7 @@ NAME
     Perinci::Sub::Wrapper - A multi-purpose subroutine wrapping framework
 
 VERSION
-    version 0.28
+    version 0.29
 
 SYNOPSIS
      use Perinci::Sub::Wrapper qw(wrap_sub);
@@ -58,6 +58,17 @@ METHODS
     The OO interface is only used internally or when you want to extend the
     wrapper.
 
+FAQ
+  caller() doesn't work from inside my wrapped code!
+    Wrapping adds at least one or two levels of calls: one for the wrapper
+    subroutine itself, the other is for the eval trap loop which can be
+    disabled but is enabled by default. The 'goto-&NAME' special form, which
+    can replace subroutine and avoid adding another call level, cannot be
+    used because wrapping also needs to postprocess function result.
+
+    This poses a problem if you need to call caller() from within your
+    wrapped code; it will be off by at least one or two also.
+
 SEE ALSO
     Perinci
 
@@ -66,6 +77,19 @@ DESCRIPTION
 
 FUNCTIONS
     None are exported by default, but they are exportable.
+
+  caller(@args) -> bool
+    Wrapper-aware caller().
+
+    Just like Perl's builtin caller(), except that this one will ignore
+    wrapper code in the call stack. You should use this if your code is
+    potentially wrapped.
+
+    Arguments ('*' denotes required arguments):
+
+    *   n => *any*
+
+    Return value:
 
   wrap_all_subs(%args) -> [status, msg, result, meta]
     Wrap all subroutines in a package and replace them with the wrapped
@@ -218,6 +242,9 @@ FUNCTIONS
             print "I'm wrapped" if wrapped();
         }
 
+    See also this package's caller(), a wrapper-aware replacement for Perl's
+    builtin caller().
+
     No arguments.
 
     Return value:
@@ -232,6 +259,9 @@ COPYRIGHT AND LICENSE
     the same terms as the Perl 5 programming language system itself.
 
 CHANGES
+  Version 0.29 (2012-08-08)
+    *   Add caller() function.
+
   Version 0.28 (2012-08-04)
     *   Add wrapped() function.
 

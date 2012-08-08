@@ -33,6 +33,7 @@
             "Perinci::Sub::DepChecker" : "0.06",
             "Perinci::Util" : "0.25",
             "Rinci" : "v1.1.18",
+            "SHARYANTO::String::Util" : "0.22",
             "perl" : "5.010000"
          }
       },
@@ -49,6 +50,6 @@
          "url" : "http://github.com/sharyanto/perl-Perinci-Sub-Wrapper"
       }
    },
-   "version" : "0.28"
+   "version" : "0.29"
 }
 

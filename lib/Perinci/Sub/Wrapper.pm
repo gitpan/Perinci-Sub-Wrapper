@@ -10,9 +10,9 @@ use Perinci::Util qw(get_package_meta_accessor);
 use Scalar::Util qw(blessed);
 
 use Exporter qw(import);
-our @EXPORT_OK = qw(wrap_sub wrap_all_subs wrapped);
+our @EXPORT_OK = qw(wrap_sub wrap_all_subs wrapped caller);
 
-our $VERSION = '0.28'; # VERSION
+our $VERSION = '0.29'; # VERSION
 
 our %SPEC;
 
@@ -144,7 +144,9 @@ sub push_lines {
     my $section = $self->{_cur_section};
 
     unless (exists $self->{_codes}{$section}) {
-        unshift @lines, "", "# * section: $section";
+        unshift @lines, "# * section: $section";
+        # don't give blank line for the top-most section (order=>0)
+        unshift @lines, "" if $self->_known_sections->{$section}{order};
         $self->{_codes}{$section} = [];
         $self->{_levels}{$section} = 0;
     }
@@ -771,7 +773,11 @@ sub wrap {
     }
 
     my $source = $self->_code_as_str;
-    $log->tracef("wrapper source code:\n%s", $source);
+    if ($log->is_trace) {
+        require SHARYANTO::String::Util;
+        $log->tracef("wrapper source code:\n%s",
+                     SHARYANTO::String::Util::linenum($source));
+    }
     my $result = {source=>$source};
     if ($compile) {
         my $wrapped = eval $source;
@@ -984,7 +990,7 @@ _
 };
 sub wrap_all_subs {
     my %args      = @_;
-    my @caller    = caller(0);
+    my @caller    = CORE::caller(0);
     my $package   = $args{package}   // $caller[0];
     my $wrap_args = $args{wrap_args} // {};
 
@@ -1033,6 +1039,9 @@ wrapped by Perinci::Sub::Wrapper. For example:
         print "I'm wrapped" if wrapped();
     }
 
+See also this package's caller(), a wrapper-aware replacement for Perl's builtin
+caller().
+
 _
     args => {
     },
@@ -1048,15 +1057,62 @@ sub wrapped {
     # should i check whether *i* am wrapped first? because that would throw off
     # the stack counting.
 
-    my @c1 = caller(1); # we want to check our *caller's* caller
-    my @c2 = caller(2); # and its caller
+    my @c1 = CORE::caller(1); # we want to check our *caller's* caller
+    my @c2 = CORE::caller(2); # and its caller
 
-    # XXX wrapper can actually wrap into another package
+    #use Data::Dump; dd \@c1; dd \@c2;
 
     my $p = $default_wrapped_package;
 
-    $c1[0] eq $p && $c1[1] =~ /^\(eval/ && $c1[4] &&
-        $c2[0] eq $p && $c2[1] =~ /^\(eval/ && $c2[3] eq '(eval)' && !$c2[4];
+    $c1[0] eq $p &&
+    $c1[1] =~ /^\(eval/ &&
+    $c1[4] &&
+    $c2[0] eq $p &&
+    $c2[1] =~ /^\(eval/ &&
+    $c2[3] eq '(eval)' &&
+    !$c2[4] &&
+    1;
+}
+
+$SPEC{caller} = {
+    v => 1.1,
+    summary => 'Wrapper-aware caller()',
+    description => <<'_',
+
+Just like Perl's builtin caller(), except that this one will ignore wrapper code
+in the call stack. You should use this if your code is potentially wrapped.
+
+_
+    args => {
+        n => {
+            pos => 0,
+        },
+    },
+    args_as => 'array',
+    result => {
+        schema=>'bool*',
+    },
+    result_naked => 1,
+};
+sub caller {
+    my $n0 = shift;
+    my $n  = $n0 // 0;
+
+    my @r;
+    my $i =  0;
+    my $j = -1;
+    while ($i <= $n+1) { # +1 for this sub itself
+        $j++;
+        @r = CORE::caller($j);
+        last unless @r;
+        if ($r[0] eq $default_wrapped_package && $r[1] =~ /^\(eval /) {
+            next;
+        }
+        $i++;
+    }
+
+    return unless @r;
+    return defined($n0) ? @r : $r[0];
 }
 
 1;
@@ -1072,7 +1128,7 @@ Perinci::Sub::Wrapper - A multi-purpose subroutine wrapping framework
 
 =head1 VERSION
 
-version 0.28
+version 0.29
 
 =head1 SYNOPSIS
 
@@ -1129,6 +1185,19 @@ only the first part of the name will be used (i.e., C<handle_NAME1()>).
 
 The OO interface is only used internally or when you want to extend the wrapper.
 
+=head1 FAQ
+
+=head2 caller() doesn't work from inside my wrapped code!
+
+Wrapping adds at least one or two levels of calls: one for the wrapper
+subroutine itself, the other is for the eval trap loop which can be disabled but
+is enabled by default. The 'goto-&NAME' special form, which can replace
+subroutine and avoid adding another call level, cannot be used because wrapping
+also needs to postprocess function result.
+
+This poses a problem if you need to call caller() from within your wrapped code;
+it will be off by at least one or two also.
+
 =head1 SEE ALSO
 
 L<Perinci>
@@ -1142,6 +1211,23 @@ This module has L<Rinci> metadata.
 
 
 None are exported by default, but they are exportable.
+
+=head2 caller(@args) -> bool
+
+Wrapper-aware caller().
+
+Just like Perl's builtin caller(), except that this one will ignore wrapper code
+in the call stack. You should use this if your code is potentially wrapped.
+
+Arguments ('*' denotes required arguments):
+
+=over 4
+
+=item * B<n> => I<any>
+
+=back
+
+Return value:
 
 =head2 wrap_all_subs(%args) -> [status, msg, result, meta]
 
@@ -1293,6 +1379,9 @@ wrapped by Perinci::Sub::Wrapper. For example:
         print "I'm wrapped" if wrapped();
     }
 
+See also this package's caller(), a wrapper-aware replacement for Perl's builtin
+caller().
+
 No arguments.
 
 Return value:
@@ -1309,6 +1398,16 @@ This is free software; you can redistribute it and/or modify it under
 the same terms as the Perl 5 programming language system itself.
 
 =head1 CHANGES
+
+=head2 Version 0.29 (2012-08-08)
+
+=over 4
+
+=item *
+
+Add caller() function.
+
+=back
 
 =head2 Version 0.28 (2012-08-04)
 
