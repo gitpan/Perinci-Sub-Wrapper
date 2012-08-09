@@ -2,7 +2,7 @@ NAME
     Perinci::Sub::Wrapper - A multi-purpose subroutine wrapping framework
 
 VERSION
-    version 0.29
+    version 0.30
 
 SYNOPSIS
      use Perinci::Sub::Wrapper qw(wrap_sub);
@@ -174,7 +174,7 @@ FUNCTIONS
         Forbid properties which have certain wrapping tags.
 
         Some property wrapper, like dies*on*error (see
-        Perinci::Sub::property::dies*on*error) has tags 'die', to signify
+        Perinci::Sub::Property::dies*on*error) has tags 'die', to signify
         that it can cause wrapping code to die.
 
         Sometimes such properties are not desirable, e.g. in daemon
@@ -212,7 +212,7 @@ FUNCTIONS
 
         It is a good idea to supply this so that wrapper code can display
         this information when they need to (e.g. see
-        Perinci::Sub::property::dies*on*error).
+        Perinci::Sub::Property::dies*on*error).
 
     *   trap => *bool* (default: 1)
 
@@ -259,6 +259,11 @@ COPYRIGHT AND LICENSE
     the same terms as the Perl 5 programming language system itself.
 
 CHANGES
+  Version 0.30 (2012-08-09)
+    *   [INCOMPATIBLE CHANGES] Now looks for property handler in
+        Perinci::Sub::Property::* instead of Perinci::Sub::property::* (fix
+        casing).
+
   Version 0.29 (2012-08-08)
     *   Add caller() function.
 

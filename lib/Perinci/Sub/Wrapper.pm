@@ -5,14 +5,13 @@ use strict;
 use warnings;
 use Log::Any '$log';
 
-use Module::Load;
 use Perinci::Util qw(get_package_meta_accessor);
 use Scalar::Util qw(blessed);
 
 use Exporter qw(import);
 our @EXPORT_OK = qw(wrap_sub wrap_all_subs wrapped caller);
 
-our $VERSION = '0.29'; # VERSION
+our $VERSION = '0.30'; # VERSION
 
 our %SPEC;
 
@@ -687,7 +686,7 @@ sub wrap {
         my $meth = "handlemeta_$k";
         unless ($self->can($meth)) {
             # try a property module first
-            eval { load "Perinci/Sub/property/$k.pm" };
+            eval { require "Perinci/Sub/Property/$k.pm" };
             unless ($self->can($meth)) {
                 return [500, "Can't handle wrapping property $k0 ($meth)"];
             }
@@ -833,7 +832,7 @@ _
             description => <<'_',
 
 It is a good idea to supply this so that wrapper code can display this
-information when they need to (e.g. see Perinci::Sub::property::dies_on_error).
+information when they need to (e.g. see Perinci::Sub::Property::dies_on_error).
 
 _
         },
@@ -913,7 +912,7 @@ _
             description => <<'_',
 
 Some property wrapper, like dies_on_error (see
-Perinci::Sub::property::dies_on_error) has tags 'die', to signify that it can
+Perinci::Sub::Property::dies_on_error) has tags 'die', to signify that it can
 cause wrapping code to die.
 
 Sometimes such properties are not desirable, e.g. in daemon environment. The use
@@ -1128,7 +1127,7 @@ Perinci::Sub::Wrapper - A multi-purpose subroutine wrapping framework
 
 =head1 VERSION
 
-version 0.29
+version 0.30
 
 =head1 SYNOPSIS
 
@@ -1318,7 +1317,7 @@ add more comments (e.g. for each property handler)
 Forbid properties which have certain wrapping tags.
 
 Some property wrapper, like diesI<on>error (see
-Perinci::Sub::property::diesI<on>error) has tags 'die', to signify that it can
+Perinci::Sub::Property::diesI<on>error) has tags 'die', to signify that it can
 cause wrapping code to die.
 
 Sometimes such properties are not desirable, e.g. in daemon environment. The use
@@ -1352,7 +1351,7 @@ The code to wrap.
 The name of the code, e.g. Foo::func.
 
 It is a good idea to supply this so that wrapper code can display this
-information when they need to (e.g. see Perinci::Sub::property::diesI<on>error).
+information when they need to (e.g. see Perinci::Sub::Property::diesI<on>error).
 
 =item * B<trap> => I<bool> (default: 1)
 
@@ -1398,6 +1397,16 @@ This is free software; you can redistribute it and/or modify it under
 the same terms as the Perl 5 programming language system itself.
 
 =head1 CHANGES
+
+=head2 Version 0.30 (2012-08-09)
+
+=over 4
+
+=item *
+
+[INCOMPATIBLE CHANGES] Now looks for property handler in Perinci::Sub::Property::* instead of Perinci::Sub::property::* (fix casing).
+
+=back
 
 =head2 Version 0.29 (2012-08-08)
 
