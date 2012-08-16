@@ -11,7 +11,9 @@ use Scalar::Util qw(blessed);
 use Exporter qw(import);
 our @EXPORT_OK = qw(wrap_sub wrap_all_subs wrapped caller);
 
-our $VERSION = '0.30'; # VERSION
+our $Log_Perinci_Wrapper_Code = $ENV{LOG_PERINCI_WRAPPER_CODE} // 0;
+
+our $VERSION = '0.31'; # VERSION
 
 our %SPEC;
 
@@ -602,7 +604,6 @@ sub wrap {
     require Scalar::Util;
 
     my ($self, %args) = @_;
-    $log->tracef("-> wrap(%s)", \%args);
 
     my $sub      = $args{sub} or return [400, "Please specify sub"];
     $args{meta} or return [400, "Please specify meta"];
@@ -729,7 +730,6 @@ sub wrap {
         local $self->{_cur_handler}      = $meth;
         local $self->{_cur_handler_meta} = $handler_metas{$k};
         local $self->{_cur_handler_args} = $ha;
-        $log->tracef("Calling %s(%s) ...", $meth, $ha);
         $self->$meth(args=>\%args, meta=>$meta, %$ha);
     }
 
@@ -772,9 +772,9 @@ sub wrap {
     }
 
     my $source = $self->_code_as_str;
-    if ($log->is_trace) {
+    if ($Log_Perinci_Wrapper_Code && $log->is_trace) {
         require SHARYANTO::String::Util;
-        $log->tracef("wrapper source code:\n%s",
+        $log->tracef("wrapper code:\n%s",
                      SHARYANTO::String::Util::linenum($source));
     }
     my $result = {source=>$source};
@@ -788,7 +788,6 @@ sub wrap {
         $result->{sub}  = $wrapped;
         $result->{meta} = $meta;
     }
-    $log->tracef("<- wrap()");
     [200, "OK", $result];
 }
 
@@ -1127,7 +1126,7 @@ Perinci::Sub::Wrapper - A multi-purpose subroutine wrapping framework
 
 =head1 VERSION
 
-version 0.30
+version 0.31
 
 =head1 SYNOPSIS
 
@@ -1180,9 +1179,21 @@ argument of C<wrap()> exists, to convert a property to a new value).
 For properties that have name in the form of C<NAME1.NAME2.NAME3> (i.e., dotted)
 only the first part of the name will be used (i.e., C<handle_NAME1()>).
 
+=head1 VARIABLES
+
+=head2 $Log_Perinci_Wrapper_Code (BOOL)
+
+Whether to log wrapper result. Default is from environment variable
+LOG_PERINCI_WRAPPER_CODE, or false. Logging is done with L<Log::Any> at trace
+level.
+
 =head1 METHODS
 
 The OO interface is only used internally or when you want to extend the wrapper.
+
+=head1 ENVIRONMENT
+
+LOG_PERINCI_WRAPPER_CODE
 
 =head1 FAQ
 
@@ -1190,12 +1201,25 @@ The OO interface is only used internally or when you want to extend the wrapper.
 
 Wrapping adds at least one or two levels of calls: one for the wrapper
 subroutine itself, the other is for the eval trap loop which can be disabled but
-is enabled by default. The 'goto-&NAME' special form, which can replace
+is enabled by default. The 'goto &NAME' special form, which can replace
 subroutine and avoid adding another call level, cannot be used because wrapping
 also needs to postprocess function result.
 
 This poses a problem if you need to call caller() from within your wrapped code;
 it will be off by at least one or two also.
+
+The solution is for your function to use the caller() replacement, provided by
+this module.
+
+=head2 But that is not transparent!
+
+True. The wrapped function needs to load and use this module's wrapper
+deliberately.
+
+An alternative is for Perinci::Sub::Wrapper to use L<Sub::Uplevel>. This module
+does not use it because, as explained in its manpage, Sub::Uplevel is rather
+slow. If you don't use caller(), your subroutine actually doesn't need to care
+if it is wrapped nor it needs "uplevel-ing".
 
 =head1 SEE ALSO
 
@@ -1397,6 +1421,24 @@ This is free software; you can redistribute it and/or modify it under
 the same terms as the Perl 5 programming language system itself.
 
 =head1 CHANGES
+
+=head2 Version 0.31 (2012-08-16)
+
+=over 4
+
+=item *
+
+No functional changes. Some logging changes:
+
+=item *
+
+Remove sub entry/exit log. Users should now use Log::Any::For::Package for this.
+
+=item *
+
+Wrapper code is only logged if $Log_Perinci_Wrapper_Code is true. You can set via environment variable LOG_PERINCI_WRAPPER_CODE.
+
+=back
 
 =head2 Version 0.30 (2012-08-09)
 

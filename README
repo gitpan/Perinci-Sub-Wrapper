@@ -2,7 +2,7 @@ NAME
     Perinci::Sub::Wrapper - A multi-purpose subroutine wrapping framework
 
 VERSION
-    version 0.30
+    version 0.31
 
 SYNOPSIS
      use Perinci::Sub::Wrapper qw(wrap_sub);
@@ -54,20 +54,42 @@ EXTENDING
     dotted) only the first part of the name will be used (i.e.,
     "handle_NAME1()").
 
+VARIABLES
+  $Log_Perinci_Wrapper_Code (BOOL)
+    Whether to log wrapper result. Default is from environment variable
+    LOG_PERINCI_WRAPPER_CODE, or false. Logging is done with Log::Any at
+    trace level.
+
 METHODS
     The OO interface is only used internally or when you want to extend the
     wrapper.
+
+ENVIRONMENT
+    LOG_PERINCI_WRAPPER_CODE
 
 FAQ
   caller() doesn't work from inside my wrapped code!
     Wrapping adds at least one or two levels of calls: one for the wrapper
     subroutine itself, the other is for the eval trap loop which can be
-    disabled but is enabled by default. The 'goto-&NAME' special form, which
+    disabled but is enabled by default. The 'goto &NAME' special form, which
     can replace subroutine and avoid adding another call level, cannot be
     used because wrapping also needs to postprocess function result.
 
     This poses a problem if you need to call caller() from within your
     wrapped code; it will be off by at least one or two also.
+
+    The solution is for your function to use the caller() replacement,
+    provided by this module.
+
+  But that is not transparent!
+    True. The wrapped function needs to load and use this module's wrapper
+    deliberately.
+
+    An alternative is for Perinci::Sub::Wrapper to use Sub::Uplevel. This
+    module does not use it because, as explained in its manpage,
+    Sub::Uplevel is rather slow. If you don't use caller(), your subroutine
+    actually doesn't need to care if it is wrapped nor it needs
+    "uplevel-ing".
 
 SEE ALSO
     Perinci
@@ -259,6 +281,15 @@ COPYRIGHT AND LICENSE
     the same terms as the Perl 5 programming language system itself.
 
 CHANGES
+  Version 0.31 (2012-08-16)
+    *   No functional changes. Some logging changes:
+
+    *   Remove sub entry/exit log. Users should now use
+        Log::Any::For::Package for this.
+
+    *   Wrapper code is only logged if $Log_Perinci_Wrapper_Code is true.
+        You can set via environment variable LOG_PERINCI_WRAPPER_CODE.
+
   Version 0.30 (2012-08-09)
     *   [INCOMPATIBLE CHANGES] Now looks for property handler in
         Perinci::Sub::Property::* instead of Perinci::Sub::property::* (fix
