@@ -11,9 +11,9 @@ use Scalar::Util qw(blessed);
 use Exporter qw(import);
 our @EXPORT_OK = qw(wrap_sub wrap_all_subs wrapped caller);
 
-our $Log_Perinci_Wrapper_Code = $ENV{LOG_PERINCI_WRAPPER_CODE} // 0;
+our $Log_Wrapper_Code = $ENV{LOG_PERINCI_WRAPPER_CODE} // 0;
 
-our $VERSION = '0.31'; # VERSION
+our $VERSION = '0.32'; # VERSION
 
 our %SPEC;
 
@@ -772,7 +772,7 @@ sub wrap {
     }
 
     my $source = $self->_code_as_str;
-    if ($Log_Perinci_Wrapper_Code && $log->is_trace) {
+    if ($Log_Wrapper_Code && $log->is_trace) {
         require SHARYANTO::String::Util;
         $log->tracef("wrapper code:\n%s",
                      SHARYANTO::String::Util::linenum($source));
@@ -1126,7 +1126,7 @@ Perinci::Sub::Wrapper - A multi-purpose subroutine wrapping framework
 
 =head1 VERSION
 
-version 0.31
+version 0.32
 
 =head1 SYNOPSIS
 
@@ -1181,7 +1181,7 @@ only the first part of the name will be used (i.e., C<handle_NAME1()>).
 
 =head1 VARIABLES
 
-=head2 $Log_Perinci_Wrapper_Code (BOOL)
+=head2 $Log_Wrapper_Code (BOOL)
 
 Whether to log wrapper result. Default is from environment variable
 LOG_PERINCI_WRAPPER_CODE, or false. Logging is done with L<Log::Any> at trace
@@ -1421,6 +1421,16 @@ This is free software; you can redistribute it and/or modify it under
 the same terms as the Perl 5 programming language system itself.
 
 =head1 CHANGES
+
+=head2 Version 0.32 (2012-08-16)
+
+=over 4
+
+=item *
+
+[INCOMPATIBLE CHANGES] Change logger setting variable $Log_{Perinci_,}Wrapper_Code (convention).
+
+=back
 
 =head2 Version 0.31 (2012-08-16)
 
