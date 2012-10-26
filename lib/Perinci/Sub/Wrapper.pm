@@ -5,15 +5,16 @@ use strict;
 use warnings;
 use Log::Any '$log';
 
-use Perinci::Util qw(get_package_meta_accessor);
-use Scalar::Util qw(blessed);
+use Perinci::Sub::Util qw(wrapres);
+use Perinci::Util      qw(get_package_meta_accessor);
+use Scalar::Util       qw(blessed);
 
 use Exporter qw(import);
 our @EXPORT_OK = qw(wrap_sub wrap_all_subs wrapped caller);
 
 our $Log_Wrapper_Code = $ENV{LOG_PERINCI_WRAPPER_CODE} // 0;
 
-our $VERSION = '0.32'; # VERSION
+our $VERSION = '0.33'; # VERSION
 
 our %SPEC;
 
@@ -57,8 +58,10 @@ sub _known_sections {
         # deprecated.
         before_call => {order=>30},
 
+        before_call_before_arg_validation => {order=>31},
+
         # argument validation now uses this, to get more specific ordering
-        before_call_arg_validation => {order=>30},
+        before_call_arg_validation => {order=>32},
 
         before_call_after_arg_validation => {order=>35},
 
@@ -101,14 +104,19 @@ sub _check_known_section {
     $ks->{$section} or die "BUG: Unknown code section '$section'";
 }
 
-sub _errif {
-    my ($self, $c_status, $c_msg, $c_cond) = @_;
-    $self->push_lines("if ($c_cond) {");
-    $self->indent;
+sub _err {
+    my ($self, $c_status, $c_msg) = @_;
     $self->push_lines(
         # we set $res here when we return from inside the eval block
         '$res = ' . "[$c_status, $c_msg]" . ';',
         'goto RETURN_RES;');
+}
+
+sub _errif {
+    my ($self, $c_status, $c_msg, $c_cond) = @_;
+    $self->push_lines("if ($c_cond) {");
+    $self->indent;
+    $self->_err($c_status, $c_msg);
     $self->unindent;
     $self->push_lines('}');
 }
@@ -134,6 +142,12 @@ sub unindent {
     $self->{_codes}{$section} //= undef;
     $self->{_levels}{$section}--;
     $self;
+}
+
+sub get_indent_level {
+    my ($self) = @_;
+    my $section = $self->{_cur_section};
+    $self->{_levels}{$section} // 0;
 }
 
 # line can be code or comment. code should not contain string literals that
@@ -345,7 +359,8 @@ sub handlemeta_features { {v=>2, prio=>15} }
 sub handle_features {
     my ($self, %args) = @_;
 
-    my $v = $self->{_meta}{features} // {};
+    my $meta = $self->{_meta};
+    my $v = $meta->{features} // {};
 
     $self->select_section('before_call_after_arg_validation');
 
@@ -456,17 +471,45 @@ sub handlemeta_args { {v=>2, prio=>10, convert=>0} }
 sub handle_args {
     require Data::Sah;
 
+    state $sah = Data::Sah->new;
+    state $plc = $sah->get_compiler("perl");
+
     my ($self, %args) = @_;
 
     my $v = $self->{_meta}{args};
     return unless $v;
 
     my $rm = $self->{_args}{remove_internal_properties};
+    my $ns = $self->{_args}{normalize_schemas};
+
+    # normalize schema
+    if ($ns) {
+        for my $an (keys %$v) {
+            my $as = $v->{$an};
+            if ($as->{schema}) {
+                $as->{schema} =
+                    Data::Sah::normalize_schema($as->{schema});
+            }
+            my $als = $as->{cmdline_aliases};
+            if ($als) {
+                for my $al (keys %$als) {
+                    if ($als->{$al}{schema}) {
+                        $als->{$al}{schema} =
+                            Data::Sah::normalize_schema($als->{$al}{schema});
+                    }
+                }
+            }
+        }
+    }
+
+    $self->select_section('before_call_arg_validation');
+    $self->push_lines('', '# check arguments') if keys %$v;
 
     # validation
-    for my $an (keys %$v) {
+    my @modules;
+    for my $an (sort keys %$v) {
         my $as = $v->{$an};
-        for (keys %$as) {
+        for (sort keys %$as) {
             if (/\A_/) {
                 delete $as->{$_} if $rm;
                 next;
@@ -487,26 +530,52 @@ sub handle_args {
             # XXX there should not be another argument with req=>1 + pos=>0,
             # there must not be one if there is argument with src.
         }
-    }
 
-    # normalize schema
-    if ($self->{_args}{normalize_schemas}) {
-        for my $an (keys %$v) {
-            my $as = $v->{$an};
-            if ($as->{schema}) {
-                $as->{schema} =
-                    Data::Sah::normalize_schema($as->{schema});
+        my $at = "\$args{'$an'}";
+
+        my $sch = $as->{schema};
+        if ($sch) {
+            my $cd = $plc->compile(
+                data_name => $an,
+                data_term => $at,
+                schema    => $sch,
+                schema_is_normalized  => $ns,
+                validator_return_type => 'str',
+                indent_level => $self->get_indent_level + 4,
+            );
+            for (@{ $cd->{modules} }) {
+                push @modules, $_ unless $_ ~~ @modules;
             }
-            my $als = $as->{cmdline_aliases};
-            if ($als) {
-                for my $al (keys %$als) {
-                    if ($als->{$al}{schema}) {
-                        $als->{$al}{schema} =
-                            Data::Sah::normalize_schema($als->{$al}{schema});
-                    }
-                }
+            my $schema_gives_default = ref($sch) eq 'ARRAY' &&
+                exists($sch->[1]{default}) ? 1:0;
+            $self->push_lines("if ($schema_gives_default || exists($at)) {");
+            $self->indent;
+            $self->push_lines("my \$err_$an;\n$cd->{result};");
+            $self->_errif(
+                400, qq["Invalid value for argument '$an': \$err_$an"],
+                "\$err_$an");
+            $self->unindent;
+            if ($as->{req}) {
+                $self->push_lines("} else {");
+                $self->indent;
+                $self->_err(400, qq["Missing required argument: $an"]);
+                $self->unindent;
+                $self->push_lines("}");
+            } else {
+                $self->push_lines("}");
+            }
+        } else {
+            if ($as->{req}) {
+                $self->_errif(400, qq["Missing required argument '$an'"],
+                              "!exists($at)");
             }
         }
+    }
+
+    if (@modules) {
+        $self->select_section('before_call_before_arg_validation');
+        $self->push_lines('', '# load required modules for validation');
+        $self->push_lines("require $_;") for @modules;
     }
 }
 
@@ -520,8 +589,10 @@ sub handle_result {
     my $v = $self->{_meta}{result};
     return unless $v;
 
+    my $ns = $self->{_args}{normalize_schemas};
+
     # normalize schema
-    if ($self->{_args}{normalize_schemas}) {
+    if ($ns) {
         if ($v->{schema}) {
             $v->{schema} = Data::Sah::normalize_schema($v->{schema});
         }
@@ -993,7 +1064,7 @@ sub wrap_all_subs {
     my $wrap_args = $args{wrap_args} // {};
 
     my $res = get_package_meta_accessor(package=>$package);
-    return [500, "Can't get meta accessor: $res->[0] - $res->[1]"]
+    return wrapres([500, "Can't get meta accessor: "], $res)
         unless $res->[0] == 200;
     my $ma = $res->[2];
 
@@ -1008,7 +1079,7 @@ sub wrap_all_subs {
         my $ometa = $metas->{$f};
         $recap->{$f} = {orig_sub => $osub, orig_meta => $ometa};
         $res = wrap_sub(%$wrap_args, sub => $osub, meta => $ometa);
-        return [500, "Can't wrap $package\::$f: $res->[0] - $res->[1]"]
+        return wrapres([500, "Can't wrap $package\::$f: "], $res)
             unless $res->[0] == 200;
         $recap->{$f}{new_sub}  = $res->[2]{sub};
         $recap->{$f}{new_meta} = $res->[2]{meta};
@@ -1126,7 +1197,7 @@ Perinci::Sub::Wrapper - A multi-purpose subroutine wrapping framework
 
 =head1 VERSION
 
-version 0.32
+version 0.33
 
 =head1 SYNOPSIS
 
@@ -1419,396 +1490,6 @@ This software is copyright (c) 2012 by Steven Haryanto.
 
 This is free software; you can redistribute it and/or modify it under
 the same terms as the Perl 5 programming language system itself.
-
-=head1 CHANGES
-
-=head2 Version 0.32 (2012-08-16)
-
-=over 4
-
-=item *
-
-[INCOMPATIBLE CHANGES] Change logger setting variable $Log_{Perinci_,}Wrapper_Code (convention).
-
-=back
-
-=head2 Version 0.31 (2012-08-16)
-
-=over 4
-
-=item *
-
-No functional changes. Some logging changes:
-
-=item *
-
-Remove sub entry/exit log. Users should now use Log::Any::For::Package for this.
-
-=item *
-
-Wrapper code is only logged if $Log_Perinci_Wrapper_Code is true. You can set via environment variable LOG_PERINCI_WRAPPER_CODE.
-
-=back
-
-=head2 Version 0.30 (2012-08-09)
-
-=over 4
-
-=item *
-
-[INCOMPATIBLE CHANGES] Now looks for property handler in Perinci::Sub::Property::* instead of Perinci::Sub::property::* (fix casing).
-
-=back
-
-=head2 Version 0.29 (2012-08-08)
-
-=over 4
-
-=item *
-
-Add caller() function.
-
-=back
-
-=head2 Version 0.28 (2012-08-04)
-
-=over 4
-
-=item *
-
-Add wrapped() function.
-
-=back
-
-=head2 Version 0.27 (2012-08-02)
-
-=over 4
-
-=item *
-
-No functional changes. Update to new Perinci::Role::MetaAccessor
-
-=item *
-
-interface (0.26).
-
-=back
-
-=head2 Version 0.26 (2012-08-01)
-
-=over 4
-
-=item *
-
-[ENHANCEMENTS] Add wrap_all_subs().
-
-=back
-
-=head2 Version 0.25 (2012-07-31)
-
-=over 4
-
-=item *
-
-[ENHANCEMENTS] Add argument: sub_name (also so that 'dies_on_error' property can display proper die message showing subroutine name).
-
-=item *
-
-[ENHANCEMENTS] Add argument: forbid_tags.
-
-=back
-
-=over 4
-
-=item *
-
-[FIXES] Change handling of 'result_naked' property so that 'dies_on_error' property can get result status + message properly.
-
-=back
-
-=head2 Version 0.24 (2012-07-31)
-
-=over 4
-
-=item *
-
-[ENHANCEMENTS] Introduce section: 'before_return_res'.
-
-=back
-
-=over 4
-
-=item *
-
-[INCOMPATIBLE CHANGES] Introduce protocol version which must be specified by all property handlers (assumed to be 1 if unspecified). This is bumped whenever an incompatible change at the basic structure of wrapper code is introduced. Bumping the protocol version will force all existing property handlers to be updated.
-
-=item *
-
-[INCOMPATIBLE CHANGES] Bump protocol version from 1 to 2: to return result immediately, handler must now say 'goto RETURN_RES' instead of 'return $res' directly. This is so that some handlers get the last chance to do something to $res before it is returned.
-
-=back
-
-=head2 Version 0.23 (2012-07-29)
-
-=over 4
-
-=item *
-
-[ENHANCEMENTS] When encountering an unknown property, automatically try to require Perinci::Sub::property::PROP first. So you don't have to manually use() the property modules.
-
-=item *
-
-[ENHANCEMENTS] Add wrap_sub() argument 'debug' to show debugging in generated code. Currently show the handler from which each line comes from.
-
-=item *
-
-[ENHANCEMENTS] Check known arg spec key.
-
-=back
-
-=head2 Version 0.22 (2012-06-21)
-
-=over 4
-
-=item *
-
-features: Require transaction ('-tx_manager' argument) if features->{tx}{req} is 1.
-
-=back
-
-=head2 Version 0.21 (2012-06-07)
-
-=over 4
-
-=item *
-
-[FIXES] deps: '-undo_trash_dir' argument is not needed when '-tx_manager' argument is given.
-
-=back
-
-=head2 Version 0.20 (2012-06-07)
-
-=over 4
-
-=item *
-
-Update to Rinci 1.1.18 (some new deps introduced: 'tmp_dir',
-
-=item *
-
-'trash_dir', 'undo_trash_dir'; some removed: 'undo_storage').
-
-=back
-
-=head2 Version 0.19 (2012-03-22)
-
-=over 4
-
-=item *
-
-[ENHANCEMENTS] 'default_lang' also converts language properties in tag metadata in 'tags'.
-
-=back
-
-=head2 Version 0.18 (2012-03-21)
-
-=over 4
-
-=item *
-
-No functional changes. Rebuild with Perinci PodWeaver plugin enabled.
-
-=back
-
-=head2 Version 0.17 (2012-03-21)
-
-=over 4
-
-=item *
-
-[ENHANCEMENTS] Convert 'default_lang' property.
-
-=item *
-
-[ENHANCEMENTS] 'remove_internal_properties' now also removes internal properties in 'result', 'examples', and 'links'.
-
-=back
-
-=head2 Version 0.16 (2012-03-16)
-
-=over 4
-
-=item *
-
-[ENHANCEMENTS] Convert 1.0 - 1.1: Set argument spec's summary from argument schema.
-
-=back
-
-=head2 Version 0.15 (2012-02-28)
-
-=over 4
-
-=item *
-
-[NEW FEATURES] Handle 'cmdline_aliases' (Rinci 1.1.8+)
-
-=item *
-
-[NEW FEATURES] Convert 1.0 'arg_aliases' to 'cmdline_aliases'
-
-=item *
-
-[NEW FEATURES] Add 'remove_internal_properties' wrap option.
-
-=back
-
-=head2 Version 0.14 (2012-02-23)
-
-=over 4
-
-=item *
-
-[NEW FEATURES] Automatically convert metadata v1.0 to v1.1. Finally all the old Sub::Spec specs are now usable again.
-
-=back
-
-=head2 Version 0.13 (2012-02-22)
-
-=over 4
-
-=item *
-
-[NEW FEATURES] Sah schemas in 'args' and 'result' are now normalized in the new metadata, this is to make it simpler for other code to use the schema (e.g. Perinci-Access when completing args). New metadata is now a deep clone of the old (instead of just a shallow copy), this might increase memory usage.
-
-=back
-
-=head2 Version 0.12 (2012-02-15)
-
-=over 4
-
-=item *
-
-[REMOVED FEATURES] Remove 'force' argument. wrap_sub() still mark wrapping by blessing the generated wrapper, but will gladly double wrap. I believe caching should be done in the upper layers.
-
-=back
-
-=head2 Version 0.11 (2012-02-13)
-
-=over 4
-
-=item *
-
-[ETC] Add tweak to work better with 'retry' property wrapper.
-
-=back
-
-=head2 Version 0.10 (2012-02-13)
-
-=over 4
-
-=item *
-
-[NEW FEATURES] Add wrap option 'compile'.
-
-=back
-
-=head2 Version 0.09 (2012-02-13)
-
-=over 4
-
-=item *
-
-[BUG FIXES] Fix indenting in generated code.
-
-=back
-
-=head2 Version 0.08 (2012-02-12)
-
-=over 4
-
-=item *
-
-[BUG FIXES] Convert keys are now respected even though meta does not have that key.
-
-=back
-
-=head2 Version 0.07 (2012-02-12)
-
-=over 4
-
-=item *
-
-Add (or re-enable) unshift_lines()
-
-=item *
-
-Extract test routine to Test::Perinci::Sub::Wrapper to make it usable from other Perinci-Sub-property-* distributions.
-
-=back
-
-=head2 Version 0.06 (2012-02-12)
-
-=over 4
-
-=item *
-
-Rename distribution from Sub-Spec-Wrapper to Perinci-Sub-Wrapper.
-
-=back
-
-=head2 Version 0.05 (2012-01-21)
-
-=over 4
-
-=item *
-
-No functional changes. Mark Sub-Spec-Wrapper deprecated.
-
-=back
-
-=head2 Version 0.04 (2011-10-19)
-
-=over 4
-
-=item *
-
-No functional changes. Add missing dependency to
-
-=item *
-
-Sub::Spec::ConvertArgs::Array [thanks cpant & Andreas].
-
-=back
-
-=head2 Version 0.03 (2011-09-22)
-
-=over 4
-
-=item *
-
-[ENHANCEMENTS] Support 'args_as' spec clause (hash/hashref/array/arrayref supported, but object not yet).
-
-=back
-
-=head2 Version 0.02 (2011-08-31)
-
-=over 4
-
-=item *
-
-Build and POD fixes.
-
-=back
-
-=head2 Version 0.01 (2011-08-31)
-
-=over 4
-
-=item *
-
-First release.
-
-=back
 
 =cut
 
