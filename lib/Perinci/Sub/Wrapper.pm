@@ -14,7 +14,7 @@ our @EXPORT_OK = qw(wrap_sub wrap_all_subs wrapped);
 
 our $Log_Wrapper_Code = $ENV{LOG_PERINCI_WRAPPER_CODE} // 0;
 
-our $VERSION = '0.34'; # VERSION
+our $VERSION = '0.35'; # VERSION
 
 our %SPEC;
 
@@ -41,10 +41,22 @@ sub __squote {
     $res;
 }
 
+sub _add_module {
+    my ($self, $mod) = @_;
+    unless ($mod ~~ $self->{_modules}) {
+        local $self->{_cur_section};
+        $self->select_section('before_sub_require_modules');
+        $self->push_lines("require $mod;");
+        push @{ $self->{_modules} }, $mod;
+    }
+}
+
 sub _known_sections {
     state $val = {
+        before_sub_require_modules => {order=>0},
+
         # reserved by wrapper for setting Perl package and declaring 'sub {'
-        OPEN_SUB => {order=>0},
+        OPEN_SUB => {order=>1},
 
         # for handlers to put stuffs right before eval. for example, 'timeout'
         # uses this to set ALRM signal handler.
@@ -540,7 +552,6 @@ sub handle_args {
         $self->push_lines('}');
     }
 
-    my @modules;
     for my $an (sort keys %$v) {
         my $as = $v->{$an};
         for (sort keys %$as) {
@@ -575,9 +586,7 @@ sub handle_args {
                     return_type          => 'str',
                     indent_level         => $self->get_indent_level + 4,
                 );
-                for (@{ $cd->{modules} }) {
-                    push @modules, $_ unless $_ ~~ @modules;
-                }
+                $self->_add_module($_) for @{ $cd->{modules} };
                 $self->push_lines("if (exists($at)) {");
                 $self->indent;
                 $self->push_lines("my \$err_$an;\n$cd->{result};");
@@ -604,13 +613,6 @@ sub handle_args {
                 400, qq["Missing required argument: $an"], "!exists($at)");
         }
     }
-
-    if (@modules) {
-        $self->select_section('before_call_before_arg_validation');
-        $self->push_lines('', '# load required modules for validation');
-        $self->push_lines("require $_;") for @modules;
-    }
-    push @{$self->{_modules}}, @modules;
 }
 
 sub handlemeta_result { {v=>2, prio=>50, convert=>0} }
@@ -680,9 +682,7 @@ sub handle_result {
                 return_type          => 'str',
                 indent_level         => $self->get_indent_level + 4,
             );
-            for (@{ $cd->{modules} }) {
-                push @modules, $_ unless $_ ~~ @modules;
-            }
+            $self->_add_module($_) for @{ $cd->{modules} };
             $self->push_lines("if (\$res->[0] == $s) {");
             $self->indent;
             $self->push_lines("$cd->{result};");
@@ -694,14 +694,6 @@ sub handle_result {
             $self->push_lines("}");
         }
     }
-
-    @modules = grep {!($_ ~~ $self->{_modules})} @modules;
-    if (@modules) {
-        $self->select_section('after_call_before_res_validation');
-        $self->push_lines('', '# load required modules for validation');
-        $self->push_lines("require $_;") for @modules;
-    }
-    push @{$self->{_modules}}, @modules;
 }
 
 sub handlemeta_result_naked { {v=>2, prio=>100, convert=>1} }
@@ -925,7 +917,7 @@ sub wrap {
         # temporarily.
         $self->push_lines('# add temporary envelope',
                           '$res = [200, "OK", $res];');
-    } else {
+    } elsif ($args{validate_result}) {
         $self->push_lines(
             '',
             '# check that sub produces enveloped result',
@@ -933,8 +925,8 @@ sub wrap {
         );
         $self->indent;
         if ($log->is_trace) {
+            $self->_add_module('Data::Dumper');
             $self->push_lines(
-                'require Data::Dumper;',
                 'local $Data::Dumper::Purity   = 1;',
                 'local $Data::Dumper::Terse    = 1;',
                 'local $Data::Dumper::Indent   = 0;',
@@ -1295,7 +1287,7 @@ Perinci::Sub::Wrapper - A multi-purpose subroutine wrapping framework
 
 =head1 VERSION
 
-version 0.34
+version 0.35
 
 =head1 SYNOPSIS
 
@@ -1428,33 +1420,41 @@ The following numbers are produced on an Asus Zenbook UX31 laptop (Intel Core i5
 1.7GHz) using Perinci::Sub::Wrapper v0.33 and Perl v5.14.2. Operating system is
 Ubuntu 11.10 (64bit).
 
-Empty subroutine (C<< sub {} >>) can be called around 4.3 mil/sec. So is this
-subroutine: C<< sub { [200, "OK"] } >>. With an empty metadata (C<< {v=>1.1}
->>), the wrapped sub call performance is 0.40 mil/sec (a 10.8x slowdown). With
-wrapping option C<< trap=>0 >>, performance is 0.47 mil/sec (9.1x slowdown).
+For perspective, empty subroutine (C<< sub {} >>) as well as C<< sub { [200,
+"OK"] } >> can be called around 4.3 mil/sec.
 
-With subroutine like this (C<< sub { my %args = @_; [200, "OK"] } >>), call
-performance for C<< $sub->(a=>1) >> is 0.97 mil/sec. With wrapping (and argument
-schema is a simple C<int>), performance is 0.13 mil/sec (5.1x slowdown).
+Wrapping this subroutine C<< sub { [200, "OK"] } >> and this simple metadata C<<
+{v=>1.1, args=>{a=>{schema=>"int"}}} >> using default options yields call
+performance for C<< $sub->() >> of about 0.28 mil/sec. For C<< $sub->(a=>1) >>
+it is about 0.12 mil/sec. So if your sub needs to be called a million times a
+second, the wrapping adds too big of an overhead.
 
-With two arguments, without wrapping: 0.89 mil/sec, with wrapping: 0.12 mil/sec
-(7.4x slowdown).
+By default, wrapper provides these functionality: checking invalid and unknown
+arguments, argument value validation, exception trapping (C<eval {}>), and
+result checking. If we turn off all these features except argument validation
+(by adding options C<< allow_invalid_args=>1, trap=>0, validate_result=>0 >>)
+call performance increases to around 0.47 mil/sec (for C<< $sub->() >> and 0.24
+mil/sec (for C<< $sub->(a=>1) >>).
 
-From this we can see several points:
-
-Overhead is significant only if you plan to call your subroutine hundreds of
-thousands or millions of times per second.
-
-Wrapping overhead of Perinci::Sub::Wrapper is rather large at the beginning
-(compared to a simple wrapper), but will not increase dramatically as we add
-more arguments. Plus, wrapping various functionality will not introduce more
-wrap nesting levels.
-
-Overhead will increase as number of arguments increase or argument schema is
-more complex. You might want to test your function with and without wrapping to
-see the actual difference for your case.
+As more arguments are introduced in the schema and passed, and as argument
+schemas become more complex, overhead will increase. For example, for 5 int
+arguments being declared and passed, call performance is around 0.11 mil/sec.
+Without passing any argument when calling, call performance is still around 0.43
+mil/sec, indicating that the significant portion of the overhead is in argument
+validation.
 
 =head1 FAQ
+
+=head2 How to display the wrapper code being generated?
+
+If environment variable LOG_PERINCI_WRAPPER_CODE or package variable
+$Log_Perinci_Wrapper_Code is set to true, generated wrapper source code is
+logged at trace level using L<Log::Any>. It can be displayed, for example, using
+L<Log::Any::App>:
+
+ % LOG_PERINCI_WRAPPER_CODE=1 \
+   perl -MLog::Any::App -MPerinci::Sub::Wrapper=wrap_sub \
+   -e 'wrap_sub(sub=>sub{}, meta=>{v=>1.1, args=>{a=>{schema=>"int"}}});'
 
 =head2 How do I tell if I am being wrapped?
 
