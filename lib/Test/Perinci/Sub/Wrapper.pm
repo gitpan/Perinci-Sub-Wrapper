@@ -10,7 +10,7 @@ use Test::More 0.96;
 our @ISA = qw(Exporter);
 our @EXPORT_OK = qw(test_wrap);
 
-our $VERSION = '0.33'; # VERSION
+our $VERSION = '0.34'; # VERSION
 
 sub test_wrap {
     my %test_args = @_;
@@ -57,9 +57,11 @@ sub test_wrap {
             }
 
             if (defined $test_args{call_status}) {
-                is(ref($call_res), 'ARRAY', 'call res is array');
+                is(ref($call_res), 'ARRAY', 'call res is array')
+                    or diag "call res = ", explain($call_res);
                 is($call_res->[0], $test_args{call_status},
-                   "call status is $test_args{call_status}");
+                   "call status is $test_args{call_status}")
+                    or diag "call res = ", explain($call_res);
             }
 
             if (exists $test_args{call_res}) {
@@ -67,7 +69,53 @@ sub test_wrap {
                           "call res")
                     or diag explain $call_res;
             }
+
+            if (exists $test_args{call_actual_res_re}) {
+                like($call_res->[2], $test_args{call_actual_res_re},
+                     "call actual res");
+            }
         }
+
+        if ($test_args{calls}) {
+            my $sub = $wrap_res->[2]{sub};
+            my $i = 0;
+            for my $call (@{$test_args{calls}}) {
+                $i++;
+                subtest "call #$i: ".($call->{name} // "") => sub {
+                    my $res;
+                    eval { $res = $sub->(@{$call->{argsr}}) };
+                    my $eval_err = $@;
+                    if ($call->{dies}) {
+                        ok($eval_err, "dies");
+                        if ($call->{die_message}) {
+                            like($eval_err, $call->{die_message},
+                                 "die message");
+                        }
+                        return;
+                    } else {
+                        ok(!$eval_err, "doesn't die")
+                            or diag $eval_err;
+                    }
+
+                    if (defined $call->{status}) {
+                        is(ref($res), 'ARRAY', 'res is array')
+                            or diag "res = ", explain($res);
+                        is($res->[0], $call->{status},
+                           "status is $call->{status}")
+                            or diag "res = ", explain($res);
+                    }
+
+                    if (exists $call->{res}) {
+                        is_deeply($res, $call->{res}, "res")
+                            or diag explain $res;
+                    }
+
+                    if (exists $call->{actual_res_re}) {
+                        like($res->[2], $call->{actual_res_re}, "actual res");
+                    }
+                }; # subtest call #$i
+            }
+        } # if calls
 
         if ($test_args{posttest}) {
             $test_args{posttest}->($wrap_res, $call_res);
@@ -89,17 +137,9 @@ Test::Perinci::Sub::Wrapper - Provide test_wrap() to test wrapper
 
 =head1 VERSION
 
-version 0.33
-
-=head1 DESCRIPTION
-
-
-This module has L<Rinci> metadata.
+version 0.34
 
 =head1 FUNCTIONS
-
-
-None are exported by default, but they are exportable.
 
 =head1 AUTHOR
 

@@ -4,11 +4,11 @@ author:
   - 'Steven Haryanto <stevenharyanto@gmail.com>'
 build_requires:
   Module::Build: 0.3601
-  Test::More: 0.96
+  Test::More: 0.98
 configure_requires:
   Module::Build: 0.3601
 dynamic_config: 0
-generated_by: 'Dist::Zilla version 4.300006, CPAN::Meta::Converter version 2.113640'
+generated_by: 'Dist::Zilla version 4.300015, CPAN::Meta::Converter version 2.120921'
 license: perl
 meta-spec:
   url: http://module-build.sourceforge.net/META-spec-v1.4.html
@@ -16,16 +16,16 @@ meta-spec:
 name: Perinci-Sub-Wrapper
 requires:
   Data::Clone: 0
-  Data::Sah: 0.06
+  Data::Sah: 0.07
   Log::Any: 0
   Perinci::MetaAccessor::Default: 0.26
   Perinci::Sub::DepChecker: 0.06
   Perinci::Sub::Util: 0
   Perinci::Util: 0.25
-  Rinci: v1.1.18
+  Rinci: v1.1.32
   SHARYANTO::String::Util: 0.22
   perl: 5.010000
 resources:
   homepage: http://search.cpan.org/dist/Perinci-Sub-Wrapper/
   repository: http://github.com/sharyanto/perl-Perinci-Sub-Wrapper
-version: 0.33
+version: 0.34

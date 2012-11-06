@@ -10,11 +10,11 @@ use Perinci::Util      qw(get_package_meta_accessor);
 use Scalar::Util       qw(blessed);
 
 use Exporter qw(import);
-our @EXPORT_OK = qw(wrap_sub wrap_all_subs wrapped caller);
+our @EXPORT_OK = qw(wrap_sub wrap_all_subs wrapped);
 
 our $Log_Wrapper_Code = $ENV{LOG_PERINCI_WRAPPER_CODE} // 0;
 
-our $VERSION = '0.33'; # VERSION
+our $VERSION = '0.34'; # VERSION
 
 our %SPEC;
 
@@ -36,7 +36,7 @@ sub new {
 sub __squote {
     require Data::Dumper;
     my $res = Data::Dumper->new([shift])->
-        Purity(1)->Terse(1)->Deepcopy(1)->Dump;
+        Purity(1)->Terse(1)->Deepcopy(1)->Indent(0)->Dump;
     chomp $res;
     $res;
 }
@@ -53,24 +53,37 @@ sub _known_sections {
         # reserved by wrapper for generating 'eval {'
         OPEN_EVAL => {order=>20},
 
-        # for handlers to put various checks before calling the wrapped
-        # function, from data validation, argument conversion, etc. this is now
-        # deprecated.
+        # for handlers to put various checks before calling the wrapped sub,
+        # from data validation, argument conversion, etc. this is now
+        # deprecated. see various before_call_* instead.
         before_call => {order=>30},
 
-        before_call_before_arg_validation => {order=>31},
+        # used by args_as handler to initialize %args from input data (@_)
+        before_call_accept_args => {order=>31},
 
-        # argument validation now uses this, to get more specific ordering
+        # used e.g. to load modules used by validation
+        before_call_before_arg_validation => {order=>32},
+
         before_call_arg_validation => {order=>32},
 
-        before_call_after_arg_validation => {order=>35},
+        # used e.g. by dependency checking
+        before_call_after_arg_validation => {order=>33},
 
-        # reserved by the wrapper for calling the function
+        # feed arguments to sub
+        before_call_feed_args => {order=>49},
+
+        # reserved by the wrapper for calling the sub
         CALL => {order=>50},
 
         # for handlers to put various things after calling, from validating
-        # result, enveloping result, etc.
+        # result, enveloping result, etc. this is now deprecated. see various
+        # after_call_* instead.
         after_call => {order=>60},
+
+        # used e.g. to load modules used by validation
+        after_call_before_res_validation => {order=>61},
+
+        after_call_res_validation => {order=>62},
 
         # reserved by wrapper to put eval end '}' and capturing $@ in $eval_err
         CLOSE_EVAL => {order=>70},
@@ -362,7 +375,7 @@ sub handle_features {
     my $meta = $self->{_meta};
     my $v = $meta->{features} // {};
 
-    $self->select_section('before_call_after_arg_validation');
+    $self->select_section('before_call_before_arg_validation');
 
     if ($v->{tx} && $v->{tx}{req}) {
         $self->push_lines('', '# check required transaction');
@@ -396,14 +409,14 @@ sub handle_args_as {
     # handler).
     #
     # Finally, unless original args_as is 'hash' we convert to the final form
-    # that the wrapped function expects.
+    # that the wrapped sub expects.
     #
-    # This setup is optimal when both the function and generated wrapper accept
+    # This setup is optimal when both the sub and generated wrapper accept
     # 'hash', but suboptimal for other cases (especially positional ones, as
     # they have to undergo a round-trip to hash even when both accept 'array').
     # This will be rectified in the future.
 
-    $self->select_section('before_call_arg_validation');
+    $self->select_section('before_call_accept_args');
 
     my $v = $new // $value;
     $self->push_lines('', "# accept arguments ($v)");
@@ -433,8 +446,7 @@ sub handle_args_as {
     }
 
     my $tok;
-    $self->push_lines('', "# convert arguments for wrapped function ($value)")
-        unless $v eq $value;
+    $self->select_section('before_call_feed_args');
     $v = $value;
     if ($v eq 'hash') {
         $tok = '%args';
@@ -467,12 +479,21 @@ sub handle_args_as {
     $self->{_args_token} = $tok;
 }
 
-sub handlemeta_args { {v=>2, prio=>10, convert=>0} }
-sub handle_args {
+sub _sah {
     require Data::Sah;
 
+    my $self = shift;
     state $sah = Data::Sah->new;
-    state $plc = $sah->get_compiler("perl");
+    $sah;
+}
+
+sub _plc {
+    my $self = shift;
+    state $plc = $self->_sah->get_compiler("perl");
+}
+
+sub handlemeta_args { {v=>2, prio=>10, convert=>0} }
+sub handle_args {
 
     my ($self, %args) = @_;
 
@@ -481,6 +502,7 @@ sub handle_args {
 
     my $rm = $self->{_args}{remove_internal_properties};
     my $ns = $self->{_args}{normalize_schemas};
+    my $va = $self->{_args}{validate_args};
 
     # normalize schema
     if ($ns) {
@@ -488,14 +510,14 @@ sub handle_args {
             my $as = $v->{$an};
             if ($as->{schema}) {
                 $as->{schema} =
-                    Data::Sah::normalize_schema($as->{schema});
+                    $self->_sah->normalize_schema($as->{schema});
             }
             my $als = $as->{cmdline_aliases};
             if ($als) {
                 for my $al (keys %$als) {
                     if ($als->{$al}{schema}) {
                         $als->{$al}{schema} =
-                            Data::Sah::normalize_schema($als->{$al}{schema});
+                            $self->_sah->normalize_schema($als->{$al}{schema});
                     }
                 }
             }
@@ -503,9 +525,21 @@ sub handle_args {
     }
 
     $self->select_section('before_call_arg_validation');
-    $self->push_lines('', '# check arguments') if keys %$v;
+    $self->push_lines('', '# check arguments');
 
-    # validation
+    unless ($self->{_args}{allow_invalid_args}) {
+        $self->push_lines('for (keys %args) {');
+        $self->indent;
+        $self->_errif(400, q["Invalid argument name '$_'"], '!/\A(-?)\w+\z/o');
+        unless ($self->{_args}{allow_unknown_args}) {
+            $self->_errif(
+                400, q["Unknown argument '$_'"],
+                '!($1 || $_ ~~ '.__squote([keys %$v]).')');
+        }
+        $self->unindent;
+        $self->push_lines('}');
+    }
+
     my @modules;
     for my $an (sort keys %$v) {
         my $as = $v->{$an};
@@ -514,6 +548,7 @@ sub handle_args {
                 delete $as->{$_} if $rm;
                 next;
             }
+            # XXX schema's schema
             # check known arg key
             die "Unknown arg spec key '$_' for arg '$an'" unless
                 /\A(
@@ -523,52 +558,50 @@ sub handle_args {
                      cmdline_aliases|
                      cmdline_src
                  )(\..+)?\z/x;
-            # XXX actually only summary/description can have .alt.lang.XXX
-
-            # XXX there should only one argument with src=stdin/stdin_or_files.
-
-            # XXX there should not be another argument with req=>1 + pos=>0,
-            # there must not be one if there is argument with src.
         }
 
         my $at = "\$args{'$an'}";
 
         my $sch = $as->{schema};
         if ($sch) {
-            my $cd = $plc->compile(
-                data_name => $an,
-                data_term => $at,
-                schema    => $sch,
-                schema_is_normalized  => $ns,
-                validator_return_type => 'str',
-                indent_level => $self->get_indent_level + 4,
-            );
-            for (@{ $cd->{modules} }) {
-                push @modules, $_ unless $_ ~~ @modules;
-            }
-            my $schema_gives_default = ref($sch) eq 'ARRAY' &&
+            my $has_default = ref($sch) eq 'ARRAY' &&
                 exists($sch->[1]{default}) ? 1:0;
-            $self->push_lines("if ($schema_gives_default || exists($at)) {");
-            $self->indent;
-            $self->push_lines("my \$err_$an;\n$cd->{result};");
-            $self->_errif(
-                400, qq["Invalid value for argument '$an': \$err_$an"],
-                "\$err_$an");
-            $self->unindent;
-            if ($as->{req}) {
-                $self->push_lines("} else {");
+            if ($va) {
+                my $cd = $self->_plc->compile(
+                    data_name            => $an,
+                    data_term            => $at,
+                    schema               => $sch,
+                    schema_is_normalized => $ns,
+                    return_type          => 'str',
+                    indent_level         => $self->get_indent_level + 4,
+                );
+                for (@{ $cd->{modules} }) {
+                    push @modules, $_ unless $_ ~~ @modules;
+                }
+                $self->push_lines("if (exists($at)) {");
                 $self->indent;
-                $self->_err(400, qq["Missing required argument: $an"]);
+                $self->push_lines("my \$err_$an;\n$cd->{result};");
+                $self->_errif(
+                    400, qq["Invalid value for argument '$an': \$err_$an"],
+                    "\$err_$an");
                 $self->unindent;
-                $self->push_lines("}");
+                if ($has_default) {
+                    $self->push_lines(
+                        '} else {',
+                        "    $at //= ".__squote($sch->[1]{default}).";",
+                        '}');
+                } else {
+                    $self->push_lines('}');
+                }
             } else {
-                $self->push_lines("}");
+                $self->push_lines(
+                    "$at //= ".__squote($sch->[1]{default}).';')
+                    if $has_default;
             }
-        } else {
-            if ($as->{req}) {
-                $self->_errif(400, qq["Missing required argument '$an'"],
-                              "!exists($at)");
-            }
+        }
+        if ($as->{req}) {
+            $self->_errif(
+                400, qq["Missing required argument: $an"], "!exists($at)");
         }
     }
 
@@ -577,9 +610,9 @@ sub handle_args {
         $self->push_lines('', '# load required modules for validation');
         $self->push_lines("require $_;") for @modules;
     }
+    push @{$self->{_modules}}, @modules;
 }
 
-# XXX not implemented yet
 sub handlemeta_result { {v=>2, prio=>50, convert=>0} }
 sub handle_result {
     require Data::Sah;
@@ -590,11 +623,23 @@ sub handle_result {
     return unless $v;
 
     my $ns = $self->{_args}{normalize_schemas};
+    my $vr = $self->{_args}{validate_result};
 
-    # normalize schema
+    my %ss; # key = status, value = schema
+
+    # normalize schemas
     if ($ns) {
         if ($v->{schema}) {
-            $v->{schema} = Data::Sah::normalize_schema($v->{schema});
+            $v->{schema} = $self->_sah->normalize_schema($v->{schema});
+        }
+        if ($v->{statuses}) {
+            for my $s (keys %{$v->{statuses}}) {
+                my $sv = $v->{statuses}{$s};
+                if ($sv->{schema}) {
+                    $sv->{schema} =
+                        $self->_sah->normalize_schema($sv->{schema});
+                }
+            }
         }
     }
 
@@ -605,14 +650,63 @@ sub handle_result {
         }
     }
 
-    # XXX validation not implemented yet
+    # validate result
+    my @modules;
+    if ($v->{schema} && $vr) {
+        $ss{200} = $v->{schema};
+    }
+    if ($v->{statuses} && $vr) {
+        for my $s (keys %{$v->{statuses}}) {
+            my $sv = $v->{statuses}{$s};
+            if ($sv->{schema}) {
+                $ss{$s} = $sv->{schema};
+            }
+        }
+    }
+
+    if (keys %ss) {
+        $self->select_section('after_call_res_validation');
+        $self->push_lines("my \$res2 = \$res->[2];");
+        $self->push_lines("my \$err2_res;");
+
+        for my $s (keys %ss) {
+            my $sch = $ss{$s};
+            my $cd = $self->_plc->compile(
+                data_name            => 'res2',
+                # err_res can clash on arg named 'res'
+                err_term             => '$err2_res',
+                schema               => $sch,
+                schema_is_normalized => $ns,
+                return_type          => 'str',
+                indent_level         => $self->get_indent_level + 4,
+            );
+            for (@{ $cd->{modules} }) {
+                push @modules, $_ unless $_ ~~ @modules;
+            }
+            $self->push_lines("if (\$res->[0] == $s) {");
+            $self->indent;
+            $self->push_lines("$cd->{result};");
+            $self->_errif(
+                500, qq["BUG: Sub produces invalid result (status=$s): ].
+                    qq[\$err2_res"],
+                "\$err2_res");
+            $self->unindent;
+            $self->push_lines("}");
+        }
+    }
+
+    @modules = grep {!($_ ~~ $self->{_modules})} @modules;
+    if (@modules) {
+        $self->select_section('after_call_before_res_validation');
+        $self->push_lines('', '# load required modules for validation');
+        $self->push_lines("require $_;") for @modules;
+    }
+    push @{$self->{_modules}}, @modules;
 }
 
 sub handlemeta_result_naked { {v=>2, prio=>100, convert=>1} }
 sub handle_result_naked {
     my ($self, %args) = @_;
-
-    # XXX option to check whether result is really naked
 
     my $old = $args{value};
     my $v   = $args{new} // $old;
@@ -676,19 +770,30 @@ sub wrap {
 
     my ($self, %args) = @_;
 
+    warn "wrap() is currently designed to be only called once, ".
+        "to wrap again, please create a new ".__PACKAGE__." object"
+            if $self->{_done}++;
+
     my $sub      = $args{sub} or return [400, "Please specify sub"];
     $args{meta} or return [400, "Please specify meta"];
     my $meta     = Data::Clone::clone($args{meta});
-    $args{convert} //= {};
+
+    my $mp = "_perinci.sub.wrapper";
+    $args{convert}             //= $meta->{"$mp.convert"} // {};
+    $args{trap}                //= $meta->{"$mp.trap"} // 1;
+    $args{compile}             //= 1;
+    $args{normalize_schemas}   //= $meta->{"$mp.normalize_schemas"} // 1;
+    $args{remove_internal_properties} //=
+        $meta->{"$mp.remove_internal_properties"} // 1;
+    $args{validate_args}       //= $meta->{"$mp.validate_args"} // 1;
+    $args{validate_result}     //= $meta->{"$mp.validate_result"} // 1;
+    $args{allow_invalid_args}  //= $meta->{"$mp.allow_invalid_args"} // 0;
+    $args{allow_unknown_args}  //= $meta->{"$mp.allow_unknown_args"} // 0;
+    $args{skip}                //= $meta->{"$mp.skip"} // [];
+
+    # temp vars
     my $convert  = $args{convert};
-    $args{trap} //= 1;
-    my $trap     = $args{trap};
-    $args{compile} //= 1;
-    my $compile  = $args{compile};
-    $args{normalize_schemas} //= 1;
-    my $normalize_schemas = $args{normalize_schemas};
-    $args{remove_internal_properties} //= 1;
-    my $remove_internal_properties = $args{remove_internal_properties};
+    my $rip      = $args{remove_internal_properties};
 
     my $comppkg  = $self->{comppkg};
 
@@ -729,6 +834,8 @@ sub wrap {
     $self->{_codes} = {};
     $self->{_args} = \%args;
     $self->{_meta} = $meta; # the new metadata
+    $self->{_modules} = []; # modules loaded by wrapper sub
+
     $self->select_section('OPEN_SUB');
     $self->push_lines(
         "package $comppkg;",
@@ -739,7 +846,10 @@ sub wrap {
 
     $meta->{args_as} //= "hash";
 
-    # XXX validate metadata first to filter invalid properties
+    if ($meta->{args_as} =~ /hash/) {
+        $self->select_section('before_call_after_arg_validation');
+        $self->push_lines('$args{-wrapped} = 1;');
+    }
 
     my %props = map {$_=>1} keys %$meta;
     $props{$_} = 1 for keys %$convert;
@@ -748,12 +858,16 @@ sub wrap {
     my %handler_metas;
     for my $k0 (keys %props) {
         if ($k0 =~ /^_/) {
-            delete $meta->{$k0} if $remove_internal_properties;
+            delete $meta->{$k0} if $rip;
             next;
         }
         my $k = $k0;
         $k =~ s/\..+//;
         next if $handler_args{$k};
+        if ($k ~~ $self->{_args}{skip}) {
+            $log->tracef("Skipped property %s (mentioned in skip)", $k);
+            next;
+        }
         return [500, "Invalid property name $k"] unless $k =~ /\A\w+\z/;
         my $meth = "handlemeta_$k";
         unless ($self->can($meth)) {
@@ -811,9 +925,31 @@ sub wrap {
         # temporarily.
         $self->push_lines('# add temporary envelope',
                           '$res = [200, "OK", $res];');
+    } else {
+        $self->push_lines(
+            '',
+            '# check that sub produces enveloped result',
+            'unless (ref($res) eq "ARRAY" && $res->[0]) {',
+        );
+        $self->indent;
+        if ($log->is_trace) {
+            $self->push_lines(
+                'require Data::Dumper;',
+                'local $Data::Dumper::Purity   = 1;',
+                'local $Data::Dumper::Terse    = 1;',
+                'local $Data::Dumper::Indent   = 0;',
+                '$res = [500, "BUG: Sub does not produce envelope: ".'.
+                    'Data::Dumper::Dumper($res)];');
+        } else {
+            $self->push_lines(
+                '$res = [500, "BUG: Sub does not produce envelope"];');
+        }
+        $self->push_lines('goto RETURN_RES;');
+        $self->unindent;
+        $self->push_lines('}');
     }
 
-    if ($trap || $self->_needs_eval) {
+    if ($args{trap} || $self->_needs_eval) {
         $self->select_section('CLOSE_EVAL');
         $self->unindent;
         $self->push_lines(
@@ -849,7 +985,7 @@ sub wrap {
                      SHARYANTO::String::Util::linenum($source));
     }
     my $result = {source=>$source};
-    if ($compile) {
+    if ($args{compile}) {
         my $wrapped = eval $source;
         die "BUG: Wrapper code can't be compiled: $@" if $@ || !$wrapped;
 
@@ -922,6 +1058,11 @@ will be done automatically), args_as, result_naked, default_lang.
 
 _
         },
+        skip => {
+            schema => 'array*',
+            summary => 'Properties to skip '.
+                '(treat as if they do not exist in metadata)',
+        },
         trap => {
             schema => ['bool' => {default=>1}],
             summary => 'Whether to trap exception using an eval block',
@@ -987,6 +1128,51 @@ cause wrapping code to die.
 
 Sometimes such properties are not desirable, e.g. in daemon environment. The use
 of such properties can be forbidden using this setting.
+
+_
+        },
+        validate_args => {
+            schema => [bool => default=>1],
+            summary => 'Whether wrapper should validate arguments',
+            description => <<'_',
+
+If set to true, will validate arguments. Validation error will cause status 400
+to be returned. This will only be done for arguments which has `schema` arg spec
+key. Will not be done if `args` property is skipped.
+
+_
+        },
+        allow_invalid_args => {
+            schema => [bool => default=>0],
+            summary => 'Whether to allow invalid arguments',
+            description => <<'_',
+
+By default, wrapper will require that all argument names are valid
+(`/\A-?\w+\z/`), except when this option is turned on.
+
+_
+        },
+        allow_unknown_args => {
+            schema => [bool => default=>0],
+            summary => 'Whether to allow unknown arguments',
+            description => <<'_',
+
+By default, this setting is set to false, which means that wrapper will require
+that all arguments are specified in `args` property, except for special
+arguments (those started with underscore), which will be allowed nevertheless.
+Will only be done if `allow_invalid_args` is set to false.
+
+_
+        },
+        validate_result => {
+            schema => [bool => default=>1],
+            summary => 'Whether wrapper should validate arguments',
+            description => <<'_',
+
+If set to true, will validate sub's result. Validation error will cause wrapper
+to return status 500 instead of sub's result. This will only be done if `schema`
+or `statuses` keys are set in the `result` property. Will not be done if
+`result` property is skipped.
 
 _
         },
@@ -1096,94 +1282,6 @@ sub wrap_all_subs {
     [200, "OK", $recap];
 }
 
-$SPEC{wrapped} = {
-    v => 1.1,
-    summary => 'Check whether we are wrapped',
-    description => <<'_',
-
-This function is to be run inside a subroutine to check if *that* subroutine is
-wrapped by Perinci::Sub::Wrapper. For example:
-
-    sub some_sub {
-        print "I'm wrapped" if wrapped();
-    }
-
-See also this package's caller(), a wrapper-aware replacement for Perl's builtin
-caller().
-
-_
-    args => {
-    },
-    args_as => 'array',
-    result => {
-        schema=>'bool*',
-    },
-    result_naked => 1,
-};
-sub wrapped {
-    no strict 'refs';
-
-    # should i check whether *i* am wrapped first? because that would throw off
-    # the stack counting.
-
-    my @c1 = CORE::caller(1); # we want to check our *caller's* caller
-    my @c2 = CORE::caller(2); # and its caller
-
-    #use Data::Dump; dd \@c1; dd \@c2;
-
-    my $p = $default_wrapped_package;
-
-    $c1[0] eq $p &&
-    $c1[1] =~ /^\(eval/ &&
-    $c1[4] &&
-    $c2[0] eq $p &&
-    $c2[1] =~ /^\(eval/ &&
-    $c2[3] eq '(eval)' &&
-    !$c2[4] &&
-    1;
-}
-
-$SPEC{caller} = {
-    v => 1.1,
-    summary => 'Wrapper-aware caller()',
-    description => <<'_',
-
-Just like Perl's builtin caller(), except that this one will ignore wrapper code
-in the call stack. You should use this if your code is potentially wrapped.
-
-_
-    args => {
-        n => {
-            pos => 0,
-        },
-    },
-    args_as => 'array',
-    result => {
-        schema=>'bool*',
-    },
-    result_naked => 1,
-};
-sub caller {
-    my $n0 = shift;
-    my $n  = $n0 // 0;
-
-    my @r;
-    my $i =  0;
-    my $j = -1;
-    while ($i <= $n+1) { # +1 for this sub itself
-        $j++;
-        @r = CORE::caller($j);
-        last unless @r;
-        if ($r[0] eq $default_wrapped_package && $r[1] =~ /^\(eval /) {
-            next;
-        }
-        $i++;
-    }
-
-    return unless @r;
-    return defined($n0) ? @r : $r[0];
-}
-
 1;
 # ABSTRACT: A multi-purpose subroutine wrapping framework
 
@@ -1197,14 +1295,14 @@ Perinci::Sub::Wrapper - A multi-purpose subroutine wrapping framework
 
 =head1 VERSION
 
-version 0.33
+version 0.34
 
 =head1 SYNOPSIS
 
  use Perinci::Sub::Wrapper qw(wrap_sub);
  my $res = wrap_sub(sub => sub {die "test\n"}, meta=>{...});
- my ($wrapped, $meta) = ($res->[2]{sub}, $res->[2]{meta});
- $wrapped->(); # call the wrapped function
+ my ($wrapped_sub, $meta) = ($res->[2]{sub}, $res->[2]{meta});
+ $wrapped_sub->(); # call the wrapped function
 
 =head1 DESCRIPTION
 
@@ -1221,13 +1319,71 @@ C<retry> (by wrapping function call inside a simple retry loop).
 
 It can also be used to convert argument passing style, e.g. from C<args_as>
 C<array> to C<args_as> C<hash>, so you can call function using named arguments
-even though the function accepts positional arguments.
+even though the function accepts positional arguments, or vice versa.
 
 There are many other possible uses.
 
 This module uses L<Log::Any> for logging.
 
 =for Pod::Coverage ^(new|handle(meta)?_.+|wrap|add_.+|section_empty|indent|unindent|select_section|push_lines)$
+
+=head1 USAGE
+
+Suppose you have a subroutine like this:
+
+ sub gen_random_array {
+     my %args = @_;
+     my $len = $args{len} // 10;
+     die "Length too big" if $len > 1000;
+     die "Please specify at least length=1" if $len < 1;
+     [map {rand} 1..$len];
+ }
+
+Wrapping can, among others, validate arguments and give default values. First
+you add a L<Rinci> metadata to your subroutine:
+
+ our %SPEC;
+ $SPEC{gen_random_array} = {
+     v => 1.1,
+     summary=> 'Generate an array of specified length containing random values',
+     args => {
+         len => {req=>1, schema => ["int*" => between => [1, 1000]]},
+     },
+     result_naked=>1,
+ };
+
+You can then remove code that validates arguments and gives default values. You
+might also want to make sure that your subroutine is run wrapped.
+
+ sub gen_random_array {
+     my %args = @_;
+     die "This subroutine needs wrapping" unless $args{-wrapped}; # optional
+     [map {rand} 1..$args{len}];
+ }
+
+Most wrapping options can also be put in C<_perinci.sub.wrapper.*>
+attributes. For example:
+
+ $SPEC{gen_random_array} = {
+     v => 1.1,
+     args => {
+         len => {req=>1, schema => ["int*" => between => [1, 1000]]},
+     },
+     result_naked=>1,
+     # skip validating arguments because sub already implements it
+     "_perinci.sub.wrapper.validate_args" => 0,
+ };
+ sub gen_random_array {
+     my %args = @_;
+     my $len = $args{len} // 10;
+     die "Length too big" if $len > 1000;
+     die "Please specify at least length=1" if $len < 1;
+     [map {rand} 1..$len];
+ }
+
+See also L<Dist::Zilla::Plugin::Rinci::Validate> which can insert validation
+code into your Perl source code files so you can skip doing it again in
+validation.
 
 =head1 EXTENDING
 
@@ -1266,7 +1422,52 @@ The OO interface is only used internally or when you want to extend the wrapper.
 
 LOG_PERINCI_WRAPPER_CODE
 
+=head1 PERFORMANCE NOTES
+
+The following numbers are produced on an Asus Zenbook UX31 laptop (Intel Core i5
+1.7GHz) using Perinci::Sub::Wrapper v0.33 and Perl v5.14.2. Operating system is
+Ubuntu 11.10 (64bit).
+
+Empty subroutine (C<< sub {} >>) can be called around 4.3 mil/sec. So is this
+subroutine: C<< sub { [200, "OK"] } >>. With an empty metadata (C<< {v=>1.1}
+>>), the wrapped sub call performance is 0.40 mil/sec (a 10.8x slowdown). With
+wrapping option C<< trap=>0 >>, performance is 0.47 mil/sec (9.1x slowdown).
+
+With subroutine like this (C<< sub { my %args = @_; [200, "OK"] } >>), call
+performance for C<< $sub->(a=>1) >> is 0.97 mil/sec. With wrapping (and argument
+schema is a simple C<int>), performance is 0.13 mil/sec (5.1x slowdown).
+
+With two arguments, without wrapping: 0.89 mil/sec, with wrapping: 0.12 mil/sec
+(7.4x slowdown).
+
+From this we can see several points:
+
+Overhead is significant only if you plan to call your subroutine hundreds of
+thousands or millions of times per second.
+
+Wrapping overhead of Perinci::Sub::Wrapper is rather large at the beginning
+(compared to a simple wrapper), but will not increase dramatically as we add
+more arguments. Plus, wrapping various functionality will not introduce more
+wrap nesting levels.
+
+Overhead will increase as number of arguments increase or argument schema is
+more complex. You might want to test your function with and without wrapping to
+see the actual difference for your case.
+
 =head1 FAQ
+
+=head2 How do I tell if I am being wrapped?
+
+Wrapper code passes C<-wrapped> special argument with a true value. So you can
+do something like this:
+
+ sub my_sub {
+     my %args = @_;
+     return [412, "I need to be wrapped"] unless $args{-wrapped};
+     ...
+ }
+
+Your subroutine needs accept arguments as hash/hashref.
 
 =head2 caller() doesn't work from inside my wrapped code!
 
@@ -1277,51 +1478,26 @@ subroutine and avoid adding another call level, cannot be used because wrapping
 also needs to postprocess function result.
 
 This poses a problem if you need to call caller() from within your wrapped code;
-it will be off by at least one or two also.
+it will also be off by at least one or two.
 
 The solution is for your function to use the caller() replacement, provided by
-this module.
+L<Perinci::Sub::Util>.
 
 =head2 But that is not transparent!
 
-True. The wrapped function needs to load and use this module's wrapper
-deliberately.
+True. The wrapped module needs to load and use that utility module explicitly.
 
-An alternative is for Perinci::Sub::Wrapper to use L<Sub::Uplevel>. This module
-does not use it because, as explained in its manpage, Sub::Uplevel is rather
-slow. If you don't use caller(), your subroutine actually doesn't need to care
-if it is wrapped nor it needs "uplevel-ing".
+An alternative is for Perinci::Sub::Wrapper to use L<Sub::Uplevel>. Currently
+though, this module does not use Sub::Uplevel because, as explained in its
+manpage, it is rather slow. If you don't use caller(), your subroutine actually
+doesn't need to care if it is wrapped nor it needs "uplevel-ing".
 
 =head1 SEE ALSO
 
 L<Perinci>
 
-=head1 DESCRIPTION
-
-
-This module has L<Rinci> metadata.
-
 =head1 FUNCTIONS
 
-
-None are exported by default, but they are exportable.
-
-=head2 caller(@args) -> bool
-
-Wrapper-aware caller().
-
-Just like Perl's builtin caller(), except that this one will ignore wrapper code
-in the call stack. You should use this if your code is potentially wrapped.
-
-Arguments ('*' denotes required arguments):
-
-=over 4
-
-=item * B<n> => I<any>
-
-=back
-
-Return value:
 
 =head2 wrap_all_subs(%args) -> [status, msg, result, meta]
 
@@ -1342,17 +1518,17 @@ Arguments ('*' denotes required arguments):
 
 =over 4
 
-=item * B<package> => I<str>
+=item * B<package>* => I<str>
 
 Package to search subroutines in.
 
 Default is caller package.
 
-=item * B<wrap_args> => I<hash>
+=item * B<wrap_args>* => I<hash>
 
 Arguments to pass to wrap_sub().
 
-Each subroutine will be wrapped by wrapI<sub(). This argument specifies what
+Each subroutine will be wrapped by wrapB<sub(). This argument specifies what
 arguments to pass to wrap>sub().
 
 Note: If you need different arguments for different subroutine, perhaps this
@@ -1376,6 +1552,22 @@ Arguments ('*' denotes required arguments):
 
 =over 4
 
+=item * B<allow_invalid_args> => I<bool> (default: 0)
+
+Whether to allow invalid arguments.
+
+By default, wrapper will require that all argument names are valid
+(C</\A-?\w+\z/>), except when this option is turned on.
+
+=item * B<allow_unknown_args> => I<bool> (default: 0)
+
+Whether to allow unknown arguments.
+
+By default, this setting is set to false, which means that wrapper will require
+that all arguments are specified in C<args> property, except for special
+arguments (those started with underscore), which will be allowed nevertheless.
+Will only be done if C<allow_invalid_args> is set to false.
+
 =item * B<compile> => I<bool> (default: 1)
 
 Whether to compile the generated wrapper.
@@ -1383,13 +1575,13 @@ Whether to compile the generated wrapper.
 Can be set to 0 to not actually wrap but just return the generated wrapper
 source code.
 
-=item * B<convert> => I<hash>
+=item * B<convert>* => I<hash>
 
 Properties to convert to new value.
 
 Not all properties can be converted, but these are a partial list of those that
 can: v (usually do not need to be specified when converting from 1.0 to 1.1,
-will be done automatically), argsI<as, result>naked, default_lang.
+will be done automatically), argsB<as, result>naked, default_lang.
 
 =item * B<debug> => I<bool> (default: 0)
 
@@ -1411,8 +1603,8 @@ add more comments (e.g. for each property handler)
 
 Forbid properties which have certain wrapping tags.
 
-Some property wrapper, like diesI<on>error (see
-Perinci::Sub::Property::diesI<on>error) has tags 'die', to signify that it can
+Some property wrapper, like diesB<on>error (see
+Perinci::Sub::Property::diesB<on>error) has tags 'die', to signify that it can
 cause wrapping code to die.
 
 Sometimes such properties are not desirable, e.g. in daemon environment. The use
@@ -1437,16 +1629,20 @@ Whether to remove properties prefixed with _.
 By default, wrapper removes internal properties (properties which start with
 underscore) in the new metadata. Set this to false to keep them.
 
+=item * B<skip>* => I<array>
+
+Properties to skip (treat as if they do not exist in metadata).
+
 =item * B<sub>* => I<code>
 
 The code to wrap.
 
-=item * B<sub_name> => I<str>
+=item * B<sub_name>* => I<str>
 
 The name of the code, e.g. Foo::func.
 
 It is a good idea to supply this so that wrapper code can display this
-information when they need to (e.g. see Perinci::Sub::Property::diesI<on>error).
+information when they need to (e.g. see Perinci::Sub::Property::diesB<on>error).
 
 =item * B<trap> => I<bool> (default: 1)
 
@@ -1456,29 +1652,28 @@ If set to true, will wrap call using an eval {} block and return 500 /undef if
 function dies. Note that if some other properties requires an eval block (like
 'timeout') an eval block will be added regardless of this parameter.
 
+=item * B<validate_args> => I<bool> (default: 1)
+
+Whether wrapper should validate arguments.
+
+If set to true, will validate arguments. Validation error will cause status 400
+to be returned. This will only be done for arguments which has C<schema> arg spec
+key. Will not be done if C<args> property is skipped.
+
+=item * B<validate_result> => I<bool> (default: 1)
+
+Whether wrapper should validate arguments.
+
+If set to true, will validate sub's result. Validation error will cause wrapper
+to return status 500 instead of sub's result. This will only be done if C<schema>
+or C<statuses> keys are set in the C<result> property. Will not be done if
+C<result> property is skipped.
+
 =back
 
 Return value:
 
 Returns an enveloped result (an array). First element (status) is an integer containing HTTP status code (200 means OK, 4xx caller error, 5xx function error). Second element (msg) is a string containing error message, or 'OK' if status is 200. Third element (result) is optional, the actual result. Fourth element (meta) is called result metadata and is optional, a hash that contains extra information.
-
-=head2 wrapped() -> bool
-
-Check whether we are wrapped.
-
-This function is to be run inside a subroutine to check if I<that> subroutine is
-wrapped by Perinci::Sub::Wrapper. For example:
-
-    sub some_sub {
-        print "I'm wrapped" if wrapped();
-    }
-
-See also this package's caller(), a wrapper-aware replacement for Perl's builtin
-caller().
-
-No arguments.
-
-Return value:
 
 =head1 AUTHOR
 

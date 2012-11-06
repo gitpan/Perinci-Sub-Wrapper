@@ -8,7 +8,7 @@ use Module::Build 0.3601;
 my %module_build_args = (
   "build_requires" => {
     "Module::Build" => "0.3601",
-    "Test::More" => "0.96"
+    "Test::More" => "0.98"
   },
   "configure_requires" => {
     "Module::Build" => "0.3601"
@@ -18,20 +18,20 @@ my %module_build_args = (
     "Steven Haryanto <stevenharyanto\@gmail.com>"
   ],
   "dist_name" => "Perinci-Sub-Wrapper",
-  "dist_version" => "0.33",
+  "dist_version" => "0.34",
   "license" => "perl",
   "module_name" => "Perinci::Sub::Wrapper",
   "recommends" => {},
   "recursive_test_files" => 1,
   "requires" => {
     "Data::Clone" => 0,
-    "Data::Sah" => "0.06",
+    "Data::Sah" => "0.07",
     "Log::Any" => 0,
     "Perinci::MetaAccessor::Default" => "0.26",
     "Perinci::Sub::DepChecker" => "0.06",
     "Perinci::Sub::Util" => 0,
     "Perinci::Util" => "0.25",
-    "Rinci" => "v1.1.18",
+    "Rinci" => "v1.1.32",
     "SHARYANTO::String::Util" => "0.22",
     "perl" => "5.010000"
   },

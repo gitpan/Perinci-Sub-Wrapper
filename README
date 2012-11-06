@@ -2,13 +2,13 @@ NAME
     Perinci::Sub::Wrapper - A multi-purpose subroutine wrapping framework
 
 VERSION
-    version 0.33
+    version 0.34
 
 SYNOPSIS
      use Perinci::Sub::Wrapper qw(wrap_sub);
      my $res = wrap_sub(sub => sub {die "test\n"}, meta=>{...});
-     my ($wrapped, $meta) = ($res->[2]{sub}, $res->[2]{meta});
-     $wrapped->(); # call the wrapped function
+     my ($wrapped_sub, $meta) = ($res->[2]{sub}, $res->[2]{meta});
+     $wrapped_sub->(); # call the wrapped function
 
 DESCRIPTION
     Perinci::Sub::Wrapper is an extensible subroutine wrapping framework. It
@@ -25,11 +25,70 @@ DESCRIPTION
 
     It can also be used to convert argument passing style, e.g. from
     "args_as" "array" to "args_as" "hash", so you can call function using
-    named arguments even though the function accepts positional arguments.
+    named arguments even though the function accepts positional arguments,
+    or vice versa.
 
     There are many other possible uses.
 
     This module uses Log::Any for logging.
+
+USAGE
+    Suppose you have a subroutine like this:
+
+     sub gen_random_array {
+         my %args = @_;
+         my $len = $args{len} // 10;
+         die "Length too big" if $len > 1000;
+         die "Please specify at least length=1" if $len < 1;
+         [map {rand} 1..$len];
+     }
+
+    Wrapping can, among others, validate arguments and give default values.
+    First you add a Rinci metadata to your subroutine:
+
+     our %SPEC;
+     $SPEC{gen_random_array} = {
+         v => 1.1,
+         summary=> 'Generate an array of specified length containing random values',
+         args => {
+             len => {req=>1, schema => ["int*" => between => [1, 1000]]},
+         },
+         result_naked=>1,
+     };
+
+    You can then remove code that validates arguments and gives default
+    values. You might also want to make sure that your subroutine is run
+    wrapped.
+
+     sub gen_random_array {
+         my %args = @_;
+         die "This subroutine needs wrapping" unless $args{-wrapped}; # optional
+         [map {rand} 1..$args{len}];
+     }
+
+    Most wrapping options can also be put in "_perinci.sub.wrapper.*"
+    attributes. For example:
+
+     $SPEC{gen_random_array} = {
+         v => 1.1,
+         args => {
+             len => {req=>1, schema => ["int*" => between => [1, 1000]]},
+         },
+         result_naked=>1,
+         # skip validating arguments because sub already implements it
+         "_perinci.sub.wrapper.validate_args" => 0,
+     };
+     sub gen_random_array {
+         my %args = @_;
+         my $len = $args{len} // 10;
+         die "Length too big" if $len > 1000;
+         die "Please specify at least length=1" if $len < 1;
+         [map {rand} 1..$len];
+     }
+
+    See also Dist::Zilla::Plugin::Rinci::Validate which can insert
+    validation code into your Perl source code files so you can skip doing
+    it again in validation.
 
 EXTENDING
     The framework is simple and extensible. Please delve directly into the
@@ -67,7 +126,52 @@ METHODS
 ENVIRONMENT
     LOG_PERINCI_WRAPPER_CODE
 
+PERFORMANCE NOTES
+    The following numbers are produced on an Asus Zenbook UX31 laptop (Intel
+    Core i5 1.7GHz) using Perinci::Sub::Wrapper v0.33 and Perl v5.14.2.
+    Operating system is Ubuntu 11.10 (64bit).
+
+    Empty subroutine ("sub {}") can be called around 4.3 mil/sec. So is this
+    subroutine: "sub { [200, "OK"] }". With an empty metadata ("{v=>1.1}"),
+    the wrapped sub call performance is 0.40 mil/sec (a 10.8x slowdown).
+    With wrapping option "trap=>0", performance is 0.47 mil/sec (9.1x
+    slowdown).
+
+    With subroutine like this ("sub { my %args = @_; [200, "OK"] }"), call
+    performance for "$sub->(a=>1)" is 0.97 mil/sec. With wrapping (and
+    argument schema is a simple "int"), performance is 0.13 mil/sec (5.1x
+    slowdown).
+
+    With two arguments, without wrapping: 0.89 mil/sec, with wrapping: 0.12
+    mil/sec (7.4x slowdown).
+
+    From this we can see several points:
+
+    Overhead is significant only if you plan to call your subroutine
+    hundreds of thousands or millions of times per second.
+
+    Wrapping overhead of Perinci::Sub::Wrapper is rather large at the
+    beginning (compared to a simple wrapper), but will not increase
+    dramatically as we add more arguments. Plus, wrapping various
+    functionality will not introduce more wrap nesting levels.
+
+    Overhead will increase as number of arguments increase or argument
+    schema is more complex. You might want to test your function with and
+    without wrapping to see the actual difference for your case.
+
 FAQ
+  How do I tell if I am being wrapped?
+    Wrapper code passes "-wrapped" special argument with a true value. So
+    you can do something like this:
+
+     sub my_sub {
+         my %args = @_;
+         return [412, "I need to be wrapped"] unless $args{-wrapped};
+         ...
+     }
+
+    Your subroutine needs accept arguments as hash/hashref.
+
   caller() doesn't work from inside my wrapped code!
     Wrapping adds at least one or two levels of calls: one for the wrapper
     subroutine itself, the other is for the eval trap loop which can be
@@ -76,43 +180,25 @@ FAQ
     used because wrapping also needs to postprocess function result.
 
     This poses a problem if you need to call caller() from within your
-    wrapped code; it will be off by at least one or two also.
+    wrapped code; it will also be off by at least one or two.
 
     The solution is for your function to use the caller() replacement,
-    provided by this module.
+    provided by Perinci::Sub::Util.
 
   But that is not transparent!
-    True. The wrapped function needs to load and use this module's wrapper
-    deliberately.
+    True. The wrapped module needs to load and use that utility module
+    explicitly.
 
-    An alternative is for Perinci::Sub::Wrapper to use Sub::Uplevel. This
-    module does not use it because, as explained in its manpage,
-    Sub::Uplevel is rather slow. If you don't use caller(), your subroutine
-    actually doesn't need to care if it is wrapped nor it needs
-    "uplevel-ing".
+    An alternative is for Perinci::Sub::Wrapper to use Sub::Uplevel.
+    Currently though, this module does not use Sub::Uplevel because, as
+    explained in its manpage, it is rather slow. If you don't use caller(),
+    your subroutine actually doesn't need to care if it is wrapped nor it
+    needs "uplevel-ing".
 
 SEE ALSO
     Perinci
 
-DESCRIPTION
-    This module has Rinci metadata.
-
 FUNCTIONS
-    None are exported by default, but they are exportable.
-
-  caller(@args) -> bool
-    Wrapper-aware caller().
-
-    Just like Perl's builtin caller(), except that this one will ignore
-    wrapper code in the call stack. You should use this if your code is
-    potentially wrapped.
-
-    Arguments ('*' denotes required arguments):
-
-    *   n => *any*
-
-    Return value:
-
   wrap_all_subs(%args) -> [status, msg, result, meta]
     Wrap all subroutines in a package and replace them with the wrapped
     version.
@@ -131,18 +217,18 @@ FUNCTIONS
 
     Arguments ('*' denotes required arguments):
 
-    *   package => *str*
+    *   package* => *str*
 
         Package to search subroutines in.
 
         Default is caller package.
 
-    *   wrap_args => *hash*
+    *   wrap_args* => *hash*
 
         Arguments to pass to wrap_sub().
 
-        Each subroutine will be wrapped by wrap*sub(). This argument
-        specifies what arguments to pass to wrap*sub().
+        Each subroutine will be wrapped by wrapsub(). This argument
+        specifies what arguments to pass to wrapsub().
 
         Note: If you need different arguments for different subroutine,
         perhaps this function is not for you. You can perform your own loop
@@ -166,6 +252,23 @@ FUNCTIONS
 
     Arguments ('*' denotes required arguments):
 
+    *   allow_invalid_args => *bool* (default: 0)
+
+        Whether to allow invalid arguments.
+
+        By default, wrapper will require that all argument names are valid
+        ("/\A-?\w+\z/"), except when this option is turned on.
+
+    *   allow_unknown_args => *bool* (default: 0)
+
+        Whether to allow unknown arguments.
+
+        By default, this setting is set to false, which means that wrapper
+        will require that all arguments are specified in "args" property,
+        except for special arguments (those started with underscore), which
+        will be allowed nevertheless. Will only be done if
+        "allow_invalid_args" is set to false.
+
     *   compile => *bool* (default: 1)
 
         Whether to compile the generated wrapper.
@@ -173,14 +276,14 @@ FUNCTIONS
         Can be set to 0 to not actually wrap but just return the generated
         wrapper source code.
 
-    *   convert => *hash*
+    *   convert* => *hash*
 
         Properties to convert to new value.
 
         Not all properties can be converted, but these are a partial list of
         those that can: v (usually do not need to be specified when
-        converting from 1.0 to 1.1, will be done automatically), args*as,
-        result*naked, default_lang.
+        converting from 1.0 to 1.1, will be done automatically), argsas,
+        resultnaked, default_lang.
 
     *   debug => *bool* (default: 0)
 
@@ -195,9 +298,9 @@ FUNCTIONS
 
         Forbid properties which have certain wrapping tags.
 
-        Some property wrapper, like dies*on*error (see
-        Perinci::Sub::Property::dies*on*error) has tags 'die', to signify
-        that it can cause wrapping code to die.
+        Some property wrapper, like diesonerror (see
+        Perinci::Sub::Property::diesonerror) has tags 'die', to signify that
+        it can cause wrapping code to die.
 
         Sometimes such properties are not desirable, e.g. in daemon
         environment. The use of such properties can be forbidden using this
@@ -224,17 +327,21 @@ FUNCTIONS
         start with underscore) in the new metadata. Set this to false to
         keep them.
 
+    *   skip* => *array*
+
+        Properties to skip (treat as if they do not exist in metadata).
+
     *   sub* => *code*
 
         The code to wrap.
 
-    *   sub_name => *str*
+    *   sub_name* => *str*
 
         The name of the code, e.g. Foo::func.
 
         It is a good idea to supply this so that wrapper code can display
         this information when they need to (e.g. see
-        Perinci::Sub::Property::dies*on*error).
+        Perinci::Sub::Property::diesonerror).
 
     *   trap => *bool* (default: 1)
 
@@ -245,6 +352,24 @@ FUNCTIONS
         an eval block (like 'timeout') an eval block will be added
         regardless of this parameter.
 
+    *   validate_args => *bool* (default: 1)
+
+        Whether wrapper should validate arguments.
+
+        If set to true, will validate arguments. Validation error will cause
+        status 400 to be returned. This will only be done for arguments
+        which has "schema" arg spec key. Will not be done if "args" property
+        is skipped.
+
+    *   validate_result => *bool* (default: 1)
+
+        Whether wrapper should validate arguments.
+
+        If set to true, will validate sub's result. Validation error will
+        cause wrapper to return status 500 instead of sub's result. This
+        will only be done if "schema" or "statuses" keys are set in the
+        "result" property. Will not be done if "result" property is skipped.
+
     Return value:
 
     Returns an enveloped result (an array). First element (status) is an
@@ -253,23 +378,6 @@ FUNCTIONS
     message, or 'OK' if status is 200. Third element (result) is optional,
     the actual result. Fourth element (meta) is called result metadata and
     is optional, a hash that contains extra information.
-
-  wrapped() -> bool
-    Check whether we are wrapped.
-
-    This function is to be run inside a subroutine to check if *that*
-    subroutine is wrapped by Perinci::Sub::Wrapper. For example:
-
-        sub some_sub {
-            print "I'm wrapped" if wrapped();
-        }
-
-    See also this package's caller(), a wrapper-aware replacement for Perl's
-    builtin caller().
-
-    No arguments.
-
-    Return value:
 
 AUTHOR
     Steven Haryanto <stevenharyanto@gmail.com>
