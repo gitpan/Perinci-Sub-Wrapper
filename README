@@ -2,7 +2,7 @@ NAME
     Perinci::Sub::Wrapper - A multi-purpose subroutine wrapping framework
 
 VERSION
-    version 0.35
+    version 0.36
 
 SYNOPSIS
      use Perinci::Sub::Wrapper qw(wrap_sub);
@@ -161,7 +161,7 @@ FAQ
     is logged at trace level using Log::Any. It can be displayed, for
     example, using Log::Any::App:
 
-     % LOG_PERINCI_WRAPPER_CODE=1 \
+     % LOG_PERINCI_WRAPPER_CODE=1 TRACE=1 \
        perl -MLog::Any::App -MPerinci::Sub::Wrapper=wrap_sub \
        -e 'wrap_sub(sub=>sub{}, meta=>{v=>1.1, args=>{a=>{schema=>"int"}}});'
 
@@ -203,7 +203,12 @@ FAQ
 SEE ALSO
     Perinci
 
+DESCRIPTION
+    This module has Rinci metadata.
+
 FUNCTIONS
+    None are exported by default, but they are exportable.
+
   wrap_all_subs(%args) -> [status, msg, result, meta]
     Wrap all subroutines in a package and replace them with the wrapped
     version.
@@ -222,18 +227,18 @@ FUNCTIONS
 
     Arguments ('*' denotes required arguments):
 
-    *   package* => *str*
+    *   package => *str*
 
         Package to search subroutines in.
 
         Default is caller package.
 
-    *   wrap_args* => *hash*
+    *   wrap_args => *hash*
 
         Arguments to pass to wrap_sub().
 
-        Each subroutine will be wrapped by wrapsub(). This argument
-        specifies what arguments to pass to wrapsub().
+        Each subroutine will be wrapped by wrap*sub(). This argument
+        specifies what arguments to pass to wrap*sub().
 
         Note: If you need different arguments for different subroutine,
         perhaps this function is not for you. You can perform your own loop
@@ -252,7 +257,7 @@ FUNCTIONS
     Wrap subroutine to do various things, like enforcing Rinci properties.
 
     Will wrap subroutine and bless the generated wrapped subroutine (by
-    default into 'Perinci::Sub::Wrapped') as a way of marking that the
+    default into "Perinci::Sub::Wrapped") as a way of marking that the
     subroutine is a wrapped one.
 
     Arguments ('*' denotes required arguments):
@@ -281,14 +286,14 @@ FUNCTIONS
         Can be set to 0 to not actually wrap but just return the generated
         wrapper source code.
 
-    *   convert* => *hash*
+    *   convert => *hash*
 
         Properties to convert to new value.
 
         Not all properties can be converted, but these are a partial list of
         those that can: v (usually do not need to be specified when
-        converting from 1.0 to 1.1, will be done automatically), argsas,
-        resultnaked, default_lang.
+        converting from 1.0 to 1.1, will be done automatically), args*as,
+        result*naked, default_lang.
 
     *   debug => *bool* (default: 0)
 
@@ -303,9 +308,9 @@ FUNCTIONS
 
         Forbid properties which have certain wrapping tags.
 
-        Some property wrapper, like diesonerror (see
-        Perinci::Sub::Property::diesonerror) has tags 'die', to signify that
-        it can cause wrapping code to die.
+        Some property wrapper, like dies*on*error (see
+        Perinci::Sub::Property::dies*on*error) has tags 'die', to signify
+        that it can cause wrapping code to die.
 
         Sometimes such properties are not desirable, e.g. in daemon
         environment. The use of such properties can be forbidden using this
@@ -315,7 +320,7 @@ FUNCTIONS
 
         The function metadata.
 
-    *   normalize_schema => *bool* (default: 1)
+    *   normalize_schemas => *bool* (default: 1)
 
         Whether to normalize schemas in metadata.
 
@@ -332,7 +337,7 @@ FUNCTIONS
         start with underscore) in the new metadata. Set this to false to
         keep them.
 
-    *   skip* => *array*
+    *   skip => *array*
 
         Properties to skip (treat as if they do not exist in metadata).
 
@@ -340,13 +345,13 @@ FUNCTIONS
 
         The code to wrap.
 
-    *   sub_name* => *str*
+    *   sub_name => *str*
 
         The name of the code, e.g. Foo::func.
 
         It is a good idea to supply this so that wrapper code can display
         this information when they need to (e.g. see
-        Perinci::Sub::Property::diesonerror).
+        "Perinci::Sub::Property::dies_on_error").
 
     *   trap => *bool* (default: 1)
 

@@ -14,7 +14,7 @@ our @EXPORT_OK = qw(wrap_sub wrap_all_subs wrapped);
 
 our $Log_Wrapper_Code = $ENV{LOG_PERINCI_WRAPPER_CODE} // 0;
 
-our $VERSION = '0.35'; # VERSION
+our $VERSION = '0.36'; # VERSION
 
 our %SPEC;
 
@@ -578,8 +578,9 @@ sub handle_args {
             my $has_default = ref($sch) eq 'ARRAY' &&
                 exists($sch->[1]{default}) ? 1:0;
             if ($va) {
+                my $dn = $an; $dn =~ s/\W+/_/g;
                 my $cd = $self->_plc->compile(
-                    data_name            => $an,
+                    data_name            => $dn,
                     data_term            => $at,
                     schema               => $sch,
                     schema_is_normalized => $ns,
@@ -589,10 +590,10 @@ sub handle_args {
                 $self->_add_module($_) for @{ $cd->{modules} };
                 $self->push_lines("if (exists($at)) {");
                 $self->indent;
-                $self->push_lines("my \$err_$an;\n$cd->{result};");
+                $self->push_lines("my \$err_$dn;\n$cd->{result};");
                 $self->_errif(
-                    400, qq["Invalid value for argument '$an': \$err_$an"],
-                    "\$err_$an");
+                    400, qq["Invalid value for argument '$an': \$err_$dn"],
+                    "\$err_$dn");
                 $self->unindent;
                 if ($has_default) {
                     $self->push_lines(
@@ -997,7 +998,7 @@ $SPEC{wrap_sub} = {
     description => <<'_',
 
 Will wrap subroutine and bless the generated wrapped subroutine (by default into
-'Perinci::Sub::Wrapped') as a way of marking that the subroutine is a wrapped
+`Perinci::Sub::Wrapped`) as a way of marking that the subroutine is a wrapped
 one.
 
 _
@@ -1030,7 +1031,8 @@ _
             description => <<'_',
 
 It is a good idea to supply this so that wrapper code can display this
-information when they need to (e.g. see Perinci::Sub::Property::dies_on_error).
+information when they need to (e.g. see
+`Perinci::Sub::Property::dies_on_error`).
 
 _
         },
@@ -1076,7 +1078,7 @@ source code.
 
 _
         },
-        normalize_schema => {
+        normalize_schemas => {
             schema => ['bool' => {default=>1}],
             summary => 'Whether to normalize schemas in metadata',
             description => <<'_',
@@ -1287,7 +1289,7 @@ Perinci::Sub::Wrapper - A multi-purpose subroutine wrapping framework
 
 =head1 VERSION
 
-version 0.35
+version 0.36
 
 =head1 SYNOPSIS
 
@@ -1317,7 +1319,7 @@ There are many other possible uses.
 
 This module uses L<Log::Any> for logging.
 
-=for Pod::Coverage ^(new|handle(meta)?_.+|wrap|add_.+|section_empty|indent|unindent|select_section|push_lines)$
+=for Pod::Coverage ^(new|handle(meta)?_.+|wrap|add_.+|section_empty|indent|unindent|get_indent_level|select_section|push_lines)$
 
 =head1 USAGE
 
@@ -1452,7 +1454,7 @@ $Log_Perinci_Wrapper_Code is set to true, generated wrapper source code is
 logged at trace level using L<Log::Any>. It can be displayed, for example, using
 L<Log::Any::App>:
 
- % LOG_PERINCI_WRAPPER_CODE=1 \
+ % LOG_PERINCI_WRAPPER_CODE=1 TRACE=1 \
    perl -MLog::Any::App -MPerinci::Sub::Wrapper=wrap_sub \
    -e 'wrap_sub(sub=>sub{}, meta=>{v=>1.1, args=>{a=>{schema=>"int"}}});'
 
@@ -1496,8 +1498,15 @@ doesn't need to care if it is wrapped nor it needs "uplevel-ing".
 
 L<Perinci>
 
+=head1 DESCRIPTION
+
+
+This module has L<Rinci> metadata.
+
 =head1 FUNCTIONS
 
+
+None are exported by default, but they are exportable.
 
 =head2 wrap_all_subs(%args) -> [status, msg, result, meta]
 
@@ -1518,17 +1527,17 @@ Arguments ('*' denotes required arguments):
 
 =over 4
 
-=item * B<package>* => I<str>
+=item * B<package> => I<str>
 
 Package to search subroutines in.
 
 Default is caller package.
 
-=item * B<wrap_args>* => I<hash>
+=item * B<wrap_args> => I<hash>
 
 Arguments to pass to wrap_sub().
 
-Each subroutine will be wrapped by wrapB<sub(). This argument specifies what
+Each subroutine will be wrapped by wrapI<sub(). This argument specifies what
 arguments to pass to wrap>sub().
 
 Note: If you need different arguments for different subroutine, perhaps this
@@ -1545,7 +1554,7 @@ Returns an enveloped result (an array). First element (status) is an integer con
 Wrap subroutine to do various things, like enforcing Rinci properties.
 
 Will wrap subroutine and bless the generated wrapped subroutine (by default into
-'Perinci::Sub::Wrapped') as a way of marking that the subroutine is a wrapped
+C<Perinci::Sub::Wrapped>) as a way of marking that the subroutine is a wrapped
 one.
 
 Arguments ('*' denotes required arguments):
@@ -1575,13 +1584,13 @@ Whether to compile the generated wrapper.
 Can be set to 0 to not actually wrap but just return the generated wrapper
 source code.
 
-=item * B<convert>* => I<hash>
+=item * B<convert> => I<hash>
 
 Properties to convert to new value.
 
 Not all properties can be converted, but these are a partial list of those that
 can: v (usually do not need to be specified when converting from 1.0 to 1.1,
-will be done automatically), argsB<as, result>naked, default_lang.
+will be done automatically), argsI<as, result>naked, default_lang.
 
 =item * B<debug> => I<bool> (default: 0)
 
@@ -1603,8 +1612,8 @@ add more comments (e.g. for each property handler)
 
 Forbid properties which have certain wrapping tags.
 
-Some property wrapper, like diesB<on>error (see
-Perinci::Sub::Property::diesB<on>error) has tags 'die', to signify that it can
+Some property wrapper, like diesI<on>error (see
+Perinci::Sub::Property::diesI<on>error) has tags 'die', to signify that it can
 cause wrapping code to die.
 
 Sometimes such properties are not desirable, e.g. in daemon environment. The use
@@ -1614,7 +1623,7 @@ of such properties can be forbidden using this setting.
 
 The function metadata.
 
-=item * B<normalize_schema> => I<bool> (default: 1)
+=item * B<normalize_schemas> => I<bool> (default: 1)
 
 Whether to normalize schemas in metadata.
 
@@ -1629,7 +1638,7 @@ Whether to remove properties prefixed with _.
 By default, wrapper removes internal properties (properties which start with
 underscore) in the new metadata. Set this to false to keep them.
 
-=item * B<skip>* => I<array>
+=item * B<skip> => I<array>
 
 Properties to skip (treat as if they do not exist in metadata).
 
@@ -1637,12 +1646,13 @@ Properties to skip (treat as if they do not exist in metadata).
 
 The code to wrap.
 
-=item * B<sub_name>* => I<str>
+=item * B<sub_name> => I<str>
 
 The name of the code, e.g. Foo::func.
 
 It is a good idea to supply this so that wrapper code can display this
-information when they need to (e.g. see Perinci::Sub::Property::diesB<on>error).
+information when they need to (e.g. see
+C<Perinci::Sub::Property::dies_on_error>).
 
 =item * B<trap> => I<bool> (default: 1)
 
