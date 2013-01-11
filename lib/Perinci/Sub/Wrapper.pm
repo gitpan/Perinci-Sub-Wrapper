@@ -14,7 +14,7 @@ our @EXPORT_OK = qw(wrap_sub wrap_all_subs wrapped);
 
 our $Log_Wrapper_Code = $ENV{LOG_PERINCI_WRAPPER_CODE} // 0;
 
-our $VERSION = '0.36'; # VERSION
+our $VERSION = '0.37'; # VERSION
 
 our %SPEC;
 
@@ -51,12 +51,24 @@ sub _add_module {
     }
 }
 
+sub _add_var {
+    my ($self, $var, $value) = @_;
+    unless (exists $self->{_vars}{$var}) {
+        local $self->{_cur_section};
+        $self->select_section('declare_vars');
+        $self->push_lines("my \$$var = ".__squote($value).";");
+        $self->{_vars}{$var} = $value;
+    }
+}
+
 sub _known_sections {
     state $val = {
         before_sub_require_modules => {order=>0},
 
         # reserved by wrapper for setting Perl package and declaring 'sub {'
         OPEN_SUB => {order=>1},
+
+        declare_vars => {order=>2},
 
         # for handlers to put stuffs right before eval. for example, 'timeout'
         # uses this to set ALRM signal handler.
@@ -588,6 +600,8 @@ sub handle_args {
                     indent_level         => $self->get_indent_level + 4,
                 );
                 $self->_add_module($_) for @{ $cd->{modules} };
+                $self->_add_var($_, $cd->{vars}{$_})
+                    for sort keys %{ $cd->{vars} };
                 $self->push_lines("if (exists($at)) {");
                 $self->indent;
                 $self->push_lines("my \$err_$dn;\n$cd->{result};");
@@ -684,6 +698,8 @@ sub handle_result {
                 indent_level         => $self->get_indent_level + 4,
             );
             $self->_add_module($_) for @{ $cd->{modules} };
+            $self->_add_var($_, $cd->{vars}{$_})
+                for sort keys %{ $cd->{vars} };
             $self->push_lines("if (\$res->[0] == $s) {");
             $self->indent;
             $self->push_lines("$cd->{result};");
@@ -778,7 +794,8 @@ sub wrap {
     $args{normalize_schemas}   //= $meta->{"$mp.normalize_schemas"} // 1;
     $args{remove_internal_properties} //=
         $meta->{"$mp.remove_internal_properties"} // 1;
-    $args{validate_args}       //= $meta->{"$mp.validate_args"} // 1;
+    $args{validate_args}       //= $meta->{"$mp.validate_args"} //
+        $ENV{PERINCI_WRAPPER_VALIDATE_ARGS} // 1;
     $args{validate_result}     //= $meta->{"$mp.validate_result"} // 1;
     $args{allow_invalid_args}  //= $meta->{"$mp.allow_invalid_args"} // 0;
     $args{allow_unknown_args}  //= $meta->{"$mp.allow_unknown_args"} // 0;
@@ -975,7 +992,9 @@ sub wrap {
     if ($Log_Wrapper_Code && $log->is_trace) {
         require SHARYANTO::String::Util;
         $log->tracef("wrapper code:\n%s",
-                     SHARYANTO::String::Util::linenum($source));
+                     $ENV{LINENUM} // 1 ?
+                         SHARYANTO::String::Util::linenum($source) :
+                               $source);
     }
     my $result = {source=>$source};
     if ($args{compile}) {
@@ -1289,7 +1308,7 @@ Perinci::Sub::Wrapper - A multi-purpose subroutine wrapping framework
 
 =head1 VERSION
 
-version 0.36
+version 0.37
 
 =head1 SYNOPSIS
 
@@ -1414,7 +1433,15 @@ The OO interface is only used internally or when you want to extend the wrapper.
 
 =head1 ENVIRONMENT
 
-LOG_PERINCI_WRAPPER_CODE
+=head2 LOG_PERINCI_WRAPPER_CODE (bool)
+
+If set to 1, will log the generated wrapper code. This value is used to set
+C<$Log_Wrapper_Code> if it is not already set.
+
+=head2 PERINCI_WRAPPER_VALIDATE_ARGS (bool, default 1)
+
+Can be set to 0 to skip adding validation code. This provides a default for
+C<validate_args> wrap_sub() argument.
 
 =head1 PERFORMANCE NOTES
 
@@ -1498,188 +1525,20 @@ doesn't need to care if it is wrapped nor it needs "uplevel-ing".
 
 L<Perinci>
 
-=head1 DESCRIPTION
-
-
-This module has L<Rinci> metadata.
-
 =head1 FUNCTIONS
 
 
-None are exported by default, but they are exportable.
+=head2 wrap_all_subs() -> [status, msg, result, meta]
 
-=head2 wrap_all_subs(%args) -> [status, msg, result, meta]
-
-Wrap all subroutines in a package and replace them with the wrapped version.
-
-This function will search all subroutines in a package which have metadata, wrap
-them, then replace the original subroutines and metadata with the wrapped
-version.
-
-One common use case is to put something like this at the bottom of your module:
-
-    Perinci::Sub::Wrapper::wrap_all_subs();
-
-to wrap ("protect") all your module's subroutines and discard the original
-unwrapped version.
-
-Arguments ('*' denotes required arguments):
-
-=over 4
-
-=item * B<package> => I<str>
-
-Package to search subroutines in.
-
-Default is caller package.
-
-=item * B<wrap_args> => I<hash>
-
-Arguments to pass to wrap_sub().
-
-Each subroutine will be wrapped by wrapI<sub(). This argument specifies what
-arguments to pass to wrap>sub().
-
-Note: If you need different arguments for different subroutine, perhaps this
-function is not for you. You can perform your own loop and wrap_sub().
-
-=back
+No arguments.
 
 Return value:
 
 Returns an enveloped result (an array). First element (status) is an integer containing HTTP status code (200 means OK, 4xx caller error, 5xx function error). Second element (msg) is a string containing error message, or 'OK' if status is 200. Third element (result) is optional, the actual result. Fourth element (meta) is called result metadata and is optional, a hash that contains extra information.
 
-=head2 wrap_sub(%args) -> [status, msg, result, meta]
+=head2 wrap_sub() -> [status, msg, result, meta]
 
-Wrap subroutine to do various things, like enforcing Rinci properties.
-
-Will wrap subroutine and bless the generated wrapped subroutine (by default into
-C<Perinci::Sub::Wrapped>) as a way of marking that the subroutine is a wrapped
-one.
-
-Arguments ('*' denotes required arguments):
-
-=over 4
-
-=item * B<allow_invalid_args> => I<bool> (default: 0)
-
-Whether to allow invalid arguments.
-
-By default, wrapper will require that all argument names are valid
-(C</\A-?\w+\z/>), except when this option is turned on.
-
-=item * B<allow_unknown_args> => I<bool> (default: 0)
-
-Whether to allow unknown arguments.
-
-By default, this setting is set to false, which means that wrapper will require
-that all arguments are specified in C<args> property, except for special
-arguments (those started with underscore), which will be allowed nevertheless.
-Will only be done if C<allow_invalid_args> is set to false.
-
-=item * B<compile> => I<bool> (default: 1)
-
-Whether to compile the generated wrapper.
-
-Can be set to 0 to not actually wrap but just return the generated wrapper
-source code.
-
-=item * B<convert> => I<hash>
-
-Properties to convert to new value.
-
-Not all properties can be converted, but these are a partial list of those that
-can: v (usually do not need to be specified when converting from 1.0 to 1.1,
-will be done automatically), argsI<as, result>naked, default_lang.
-
-=item * B<debug> => I<bool> (default: 0)
-
-Generate code with debugging.
-
-If turned on, will produce various debugging in the generated code. Currently
-what this does:
-
-=over
-
-=item *
-
-add more comments (e.g. for each property handler)
-
-
-=back
-
-=item * B<forbid_tags> => I<array>
-
-Forbid properties which have certain wrapping tags.
-
-Some property wrapper, like diesI<on>error (see
-Perinci::Sub::Property::diesI<on>error) has tags 'die', to signify that it can
-cause wrapping code to die.
-
-Sometimes such properties are not desirable, e.g. in daemon environment. The use
-of such properties can be forbidden using this setting.
-
-=item * B<meta>* => I<hash>
-
-The function metadata.
-
-=item * B<normalize_schemas> => I<bool> (default: 1)
-
-Whether to normalize schemas in metadata.
-
-By default, wrapper normalize Sah schemas in metadata, like in 'args' or
-'result' property, for convenience so that it does not need to be normalized
-again prior to use. If you want to turn off this behaviour, set to false.
-
-=item * B<remove_internal_properties> => I<bool> (default: 1)
-
-Whether to remove properties prefixed with _.
-
-By default, wrapper removes internal properties (properties which start with
-underscore) in the new metadata. Set this to false to keep them.
-
-=item * B<skip> => I<array>
-
-Properties to skip (treat as if they do not exist in metadata).
-
-=item * B<sub>* => I<code>
-
-The code to wrap.
-
-=item * B<sub_name> => I<str>
-
-The name of the code, e.g. Foo::func.
-
-It is a good idea to supply this so that wrapper code can display this
-information when they need to (e.g. see
-C<Perinci::Sub::Property::dies_on_error>).
-
-=item * B<trap> => I<bool> (default: 1)
-
-Whether to trap exception using an eval block.
-
-If set to true, will wrap call using an eval {} block and return 500 /undef if
-function dies. Note that if some other properties requires an eval block (like
-'timeout') an eval block will be added regardless of this parameter.
-
-=item * B<validate_args> => I<bool> (default: 1)
-
-Whether wrapper should validate arguments.
-
-If set to true, will validate arguments. Validation error will cause status 400
-to be returned. This will only be done for arguments which has C<schema> arg spec
-key. Will not be done if C<args> property is skipped.
-
-=item * B<validate_result> => I<bool> (default: 1)
-
-Whether wrapper should validate arguments.
-
-If set to true, will validate sub's result. Validation error will cause wrapper
-to return status 500 instead of sub's result. This will only be done if C<schema>
-or C<statuses> keys are set in the C<result> property. Will not be done if
-C<result> property is skipped.
-
-=back
+No arguments.
 
 Return value:
 
@@ -1691,7 +1550,7 @@ Steven Haryanto <stevenharyanto@gmail.com>
 
 =head1 COPYRIGHT AND LICENSE
 
-This software is copyright (c) 2012 by Steven Haryanto.
+This software is copyright (c) 2013 by Steven Haryanto.
 
 This is free software; you can redistribute it and/or modify it under
 the same terms as the Perl 5 programming language system itself.
