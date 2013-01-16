@@ -39,7 +39,6 @@
             "Log::Any" : "0",
             "Perinci::MetaAccessor::Default" : "0.26",
             "Perinci::Sub::DepChecker" : "0.06",
-            "Perinci::Sub::PropertyUtil" : "0",
             "Perinci::Sub::Util" : "0",
             "Perinci::Util" : "0",
             "Rinci" : "v1.1.32",
@@ -60,6 +59,6 @@
          "url" : "http://github.com/sharyanto/perl-Perinci-Sub-Wrapper"
       }
    },
-   "version" : "0.38"
+   "version" : "0.39"
 }
 
