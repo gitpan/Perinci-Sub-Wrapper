@@ -18,14 +18,14 @@ my %module_build_args = (
     "Steven Haryanto <stevenharyanto\@gmail.com>"
   ],
   "dist_name" => "Perinci-Sub-Wrapper",
-  "dist_version" => "0.39",
+  "dist_version" => "0.40",
   "license" => "perl",
   "module_name" => "Perinci::Sub::Wrapper",
   "recommends" => {},
   "recursive_test_files" => 1,
   "requires" => {
     "Data::Clone" => 0,
-    "Data::Sah" => "0.10",
+    "Data::Sah" => "0.14",
     "Log::Any" => 0,
     "Perinci::MetaAccessor::Default" => "0.26",
     "Perinci::Sub::DepChecker" => "0.06",
@@ -33,7 +33,7 @@ my %module_build_args = (
     "Perinci::Util" => 0,
     "Rinci" => "v1.1.32",
     "SHARYANTO::String::Util" => "0.22",
-    "perl" => "5.010000"
+    "perl" => "5.010001"
   },
   "script_files" => []
 );
