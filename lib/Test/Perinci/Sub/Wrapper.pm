@@ -10,7 +10,7 @@ use Test::More 0.96;
 our @ISA = qw(Exporter);
 our @EXPORT_OK = qw(test_wrap);
 
-our $VERSION = '0.41'; # VERSION
+our $VERSION = '0.42'; # VERSION
 
 sub test_wrap {
     my %test_args = @_;
@@ -128,8 +128,8 @@ sub test_wrap {
 1;
 # ABSTRACT: Provide test_wrap() to test wrapper
 
-
 __END__
+
 =pod
 
 =encoding utf-8
@@ -140,7 +140,7 @@ Test::Perinci::Sub::Wrapper - Provide test_wrap() to test wrapper
 
 =head1 VERSION
 
-version 0.41
+version 0.42
 
 =for Pod::Coverage test_wrap
 
@@ -163,4 +163,3 @@ the same terms as the Perl 5 programming language system itself.
 None are exported by default, but they are exportable.
 
 =cut
-

@@ -14,7 +14,7 @@ our @EXPORT_OK = qw(wrap_sub wrap_all_subs wrapped);
 
 our $Log_Wrapper_Code = $ENV{LOG_PERINCI_WRAPPER_CODE} // 0;
 
-our $VERSION = '0.41'; # VERSION
+our $VERSION = '0.42'; # VERSION
 
 our %SPEC;
 
@@ -580,7 +580,8 @@ sub handle_args {
                      schema|req|pos|greedy|
                      completion|
                      cmdline_aliases|
-                     cmdline_src
+                     cmdline_src|
+                     x
                  )(\..+)?\z/x;
         }
 
@@ -1302,8 +1303,8 @@ sub wrap_all_subs {
 1;
 # ABSTRACT: A multi-purpose subroutine wrapping framework
 
-
 __END__
+
 =pod
 
 =encoding utf-8
@@ -1314,7 +1315,7 @@ Perinci::Sub::Wrapper - A multi-purpose subroutine wrapping framework
 
 =head1 VERSION
 
-version 0.41
+version 0.42
 
 =head1 SYNOPSIS
 
@@ -1482,7 +1483,7 @@ validation.
 
 =head2 How to display the wrapper code being generated?
 
-If environment variable LOG_PERINCI_WRAPPER_CODE or package variable
+If environment variable L<LOG_PERINCI_WRAPPER_CODE> or package variable
 $Log_Perinci_Wrapper_Code is set to true, generated wrapper source code is
 logged at trace level using L<Log::Any>. It can be displayed, for example, using
 L<Log::Any::App>:
@@ -1490,6 +1491,11 @@ L<Log::Any::App>:
  % LOG_PERINCI_WRAPPER_CODE=1 TRACE=1 \
    perl -MLog::Any::App -MPerinci::Sub::Wrapper=wrap_sub \
    -e 'wrap_sub(sub=>sub{}, meta=>{v=>1.1, args=>{a=>{schema=>"int"}}});'
+
+Note that L<Data::Sah> (the module used to generate validator code) observes
+C<LOG_SAH_VALIDATOR_CODE>, but during wrapping this environment flag is
+currently disabled by this module, so you need to set
+L<LOG_PERINCI_WRAPPER_CODE> instead.
 
 =head2 How do I tell if I am being wrapped?
 
@@ -1549,8 +1555,6 @@ None are exported by default, but they are exportable.
 
 =head2 wrap_all_subs(%args) -> [status, msg, result, meta]
 
-Wrap all subroutines in a package and replace them with the wrapped version.
-
 This function will search all subroutines in a package which have metadata, wrap
 them, then replace the original subroutines and metadata with the wrapped
 version.
@@ -1589,8 +1593,6 @@ Return value:
 Returns an enveloped result (an array). First element (status) is an integer containing HTTP status code (200 means OK, 4xx caller error, 5xx function error). Second element (msg) is a string containing error message, or 'OK' if status is 200. Third element (result) is optional, the actual result. Fourth element (meta) is called result metadata and is optional, a hash that contains extra information.
 
 =head2 wrap_sub(%args) -> [status, msg, result, meta]
-
-Wrap subroutine to do various things, like enforcing Rinci properties.
 
 Will wrap subroutine and bless the generated wrapped subroutine (by default into
 C<Perinci::Sub::Wrapped>) as a way of marking that the subroutine is a wrapped
@@ -1725,4 +1727,3 @@ Return value:
 Returns an enveloped result (an array). First element (status) is an integer containing HTTP status code (200 means OK, 4xx caller error, 5xx function error). Second element (msg) is a string containing error message, or 'OK' if status is 200. Third element (result) is optional, the actual result. Fourth element (meta) is called result metadata and is optional, a hash that contains extra information.
 
 =cut
-

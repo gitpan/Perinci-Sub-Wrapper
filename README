@@ -2,7 +2,7 @@ NAME
     Perinci::Sub::Wrapper - A multi-purpose subroutine wrapping framework
 
 VERSION
-    version 0.41
+    version 0.42
 
 SYNOPSIS
      use Perinci::Sub::Wrapper qw(wrap_sub);
@@ -171,6 +171,11 @@ FAQ
        perl -MLog::Any::App -MPerinci::Sub::Wrapper=wrap_sub \
        -e 'wrap_sub(sub=>sub{}, meta=>{v=>1.1, args=>{a=>{schema=>"int"}}});'
 
+    Note that Data::Sah (the module used to generate validator code)
+    observes "LOG_SAH_VALIDATOR_CODE", but during wrapping this environment
+    flag is currently disabled by this module, so you need to set
+    LOG_PERINCI_WRAPPER_CODE instead.
+
   How do I tell if I am being wrapped?
     Wrapper code passes "-wrapped" special argument with a true value. So
     you can do something like this:
@@ -222,9 +227,6 @@ FUNCTIONS
     None are exported by default, but they are exportable.
 
   wrap_all_subs(%args) -> [status, msg, result, meta]
-    Wrap all subroutines in a package and replace them with the wrapped
-    version.
-
     This function will search all subroutines in a package which have
     metadata, wrap them, then replace the original subroutines and metadata
     with the wrapped version.
@@ -266,8 +268,6 @@ FUNCTIONS
     is optional, a hash that contains extra information.
 
   wrap_sub(%args) -> [status, msg, result, meta]
-    Wrap subroutine to do various things, like enforcing Rinci properties.
-
     Will wrap subroutine and bless the generated wrapped subroutine (by
     default into "Perinci::Sub::Wrapped") as a way of marking that the
     subroutine is a wrapped one.
