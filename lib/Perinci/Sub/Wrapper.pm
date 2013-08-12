@@ -7,7 +7,6 @@ use experimental 'smartmatch';
 use Log::Any '$log';
 
 use Perinci::Sub::Util qw(wrapres);
-use Perinci::Util      qw(get_package_meta_accessor);
 use Scalar::Util       qw(blessed);
 
 use Exporter qw(import);
@@ -15,7 +14,7 @@ our @EXPORT_OK = qw(wrap_sub wrap_all_subs wrapped);
 
 our $Log_Wrapper_Code = $ENV{LOG_PERINCI_WRAPPER_CODE} // 0;
 
-our $VERSION = '0.43'; # VERSION
+our $VERSION = '0.44'; # VERSION
 
 our %SPEC;
 
@@ -1268,22 +1267,17 @@ sub wrap_all_subs {
     my $package   = $args{package}   // $caller[0];
     my $wrap_args = $args{wrap_args} // {};
 
-    my $res = get_package_meta_accessor(package=>$package);
-    return wrapres([500, "Can't get meta accessor: "], $res)
-        unless $res->[0] == 200;
-    my $ma = $res->[2];
-
     my $recap = {};
 
     no strict 'refs';
 
-    my $metas = $ma->get_all_metas($package);
+    my $metas = \%{"$package\::SPEC"} // {};
     for my $f (keys %$metas) {
         next unless $f =~ /\A\w+\z/;
         my $osub  = \&{"$package\::$f"};
         my $ometa = $metas->{$f};
         $recap->{$f} = {orig_sub => $osub, orig_meta => $ometa};
-        $res = wrap_sub(%$wrap_args, sub => $osub, meta => $ometa);
+        my $res = wrap_sub(%$wrap_args, sub => $osub, meta => $ometa);
         return wrapres([500, "Can't wrap $package\::$f: "], $res)
             unless $res->[0] == 200;
         $recap->{$f}{new_sub}  = $res->[2]{sub};
@@ -1295,7 +1289,7 @@ sub wrap_all_subs {
     # replace the originals
     for my $f (keys %$recap) {
         *{"$package\::$f"} = $recap->{$f}{new_sub};
-        $ma->set_meta($package, $f, $recap->{$f}{new_meta});
+        ${"$package\::SPEC"}{$f} = $recap->{$f}{new_meta};
     }
 
     [200, "OK", $recap];
@@ -1316,7 +1310,7 @@ Perinci::Sub::Wrapper - A multi-purpose subroutine wrapping framework
 
 =head1 VERSION
 
-version 0.43
+version 0.44
 
 =head1 SYNOPSIS
 
