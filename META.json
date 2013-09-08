@@ -4,7 +4,7 @@
       "Steven Haryanto <stevenharyanto@gmail.com>"
    ],
    "dynamic_config" : 0,
-   "generated_by" : "Dist::Zilla version 4.300035, CPAN::Meta::Converter version 2.131560",
+   "generated_by" : "Dist::Zilla version 4.300035, CPAN::Meta::Converter version 2.132140",
    "license" : [
       "perl_5"
    ],
@@ -39,7 +39,7 @@
             "Log::Any" : "0",
             "Perinci::Sub::DepChecker" : "0.06",
             "Perinci::Sub::Util" : "0",
-            "Rinci" : "v1.1.35",
+            "Rinci" : "v1.1.36",
             "SHARYANTO::String::Util" : "0.22",
             "experimental" : "0",
             "perl" : "5.010001"
@@ -47,7 +47,9 @@
       },
       "test" : {
          "requires" : {
-            "Test::More" : "0.98"
+            "Capture::Tiny" : "0",
+            "Test::More" : "0.98",
+            "blib" : "0"
          }
       }
    },
@@ -58,6 +60,6 @@
          "url" : "http://github.com/sharyanto/perl-Perinci-Sub-Wrapper"
       }
    },
-   "version" : "0.44"
+   "version" : "0.45"
 }
 
