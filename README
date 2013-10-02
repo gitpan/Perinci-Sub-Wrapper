@@ -2,7 +2,7 @@ NAME
     Perinci::Sub::Wrapper - A multi-purpose subroutine wrapping framework
 
 VERSION
-    version 0.45
+    version 0.46
 
 SYNOPSIS
      use Perinci::Sub::Wrapper qw(wrap_sub);
@@ -372,17 +372,23 @@ FUNCTIONS
 
         Properties to skip (treat as if they do not exist in metadata).
 
-    *   sub* => *code*
+    *   sub => *code*
 
         The code to wrap.
 
+        Either "sub" or "sub_name" must be supplied.
+
+        If generated wrapper code is to be saved to disk or used by another
+        process, then "sub_name" is required.
+
     *   sub_name => *str*
 
-        The name of the code, e.g. Foo::func.
+        The fully qualified name of the subroutine, e.g. Foo::func.
 
-        It is a good idea to supply this so that wrapper code can display
-        this information when they need to (e.g. see
-        "Perinci::Sub::Property::dies_on_error").
+        Either "sub" or "sub_name" must be supplied.
+
+        If generated wrapper code is to be saved to disk or used by another
+        process, then "sub_name" is required.
 
     *   trap => *bool* (default: 1)
 

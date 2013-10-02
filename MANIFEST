@@ -1,10 +1,10 @@
-Build.PL
 Changes
 LICENSE
 MANIFEST
 MANIFEST.SKIP
 META.json
 META.yml
+Makefile.PL
 README
 dist.ini
 lib/Perinci/Sub/Wrapper.pm
@@ -15,6 +15,7 @@ t/opt-allow_invalid_args.t
 t/opt-allow_unknown_args.t
 t/opt-remove_internal_properties.t
 t/opt-skip.t
+t/opt-sub_name.t
 t/opt-validate_args.t
 t/opt-validate_result.t
 t/prop-args.t
