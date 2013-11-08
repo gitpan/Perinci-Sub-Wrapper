@@ -6,7 +6,7 @@ use warnings;
 use experimental 'smartmatch';
 use Log::Any '$log';
 
-use Perinci::Sub::Util qw(wrapres);
+use Perinci::Sub::Util qw(err);
 use Scalar::Util       qw(blessed);
 
 use Exporter qw(import);
@@ -14,7 +14,7 @@ our @EXPORT_OK = qw(wrap_sub wrap_all_subs wrapped);
 
 our $Log_Wrapper_Code = $ENV{LOG_PERINCI_WRAPPER_CODE} // 0;
 
-our $VERSION = '0.46'; # VERSION
+our $VERSION = '0.47'; # VERSION
 
 our %SPEC;
 
@@ -838,9 +838,11 @@ sub wrap {
     if (!$sub_name) {
         $sub_name = $comppkg . "::sub".Scalar::Util::refaddr($sub);
         no strict 'refs';
+        no warnings;
         ${$sub_name} = $sub;
         $sub_name = "\$$sub_name"; # make it a scalar
     }
+    use experimental 'smartmatch';
 
     # also store the meta, it is needed by the wrapped sub. sometimes the meta
     # contains coderef and can't be dumped reliably, so we store it instead.
@@ -1011,7 +1013,7 @@ sub wrap {
                          SHARYANTO::String::Util::linenum($source) :
                                $source);
     }
-    my $result = {source=>$source};
+    my $result = {source=>$source, meta=>$meta};
     if ($args{compile}) {
         my $wrapped = eval $source;
         die "BUG: Wrapper code can't be compiled: $@" if $@ || !$wrapped;
@@ -1020,7 +1022,6 @@ sub wrap {
         bless $wrapped, $comppkg;
 
         $result->{sub}  = $wrapped;
-        $result->{meta} = $meta;
     }
     [200, "OK", $result];
 }
@@ -1297,7 +1298,7 @@ sub wrap_all_subs {
         my $ometa = $metas->{$f};
         $recap->{$f} = {orig_sub => $osub, orig_meta => $ometa};
         my $res = wrap_sub(%$wrap_args, sub => $osub, meta => $ometa);
-        return wrapres([500, "Can't wrap $package\::$f: "], $res)
+        return err(500, "Can't wrap $package\::$f", $res)
             unless $res->[0] == 200;
         $recap->{$f}{new_sub}  = $res->[2]{sub};
         $recap->{$f}{new_meta} = $res->[2]{meta};
@@ -1329,7 +1330,7 @@ Perinci::Sub::Wrapper - A multi-purpose subroutine wrapping framework
 
 =head1 VERSION
 
-version 0.46
+version 0.47
 
 =head1 SYNOPSIS
 
