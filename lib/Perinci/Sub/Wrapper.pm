@@ -14,7 +14,7 @@ our @EXPORT_OK = qw(wrap_sub wrap_all_subs wrapped);
 
 our $Log_Wrapper_Code = $ENV{LOG_PERINCI_WRAPPER_CODE} // 0;
 
-our $VERSION = '0.47'; # VERSION
+our $VERSION = '0.48'; # VERSION
 
 our %SPEC;
 
@@ -578,7 +578,8 @@ sub handle_args {
                 /\A(
                      summary|description|tags|default_lang|
                      schema|req|pos|greedy|
-                     completion|
+                     default|
+                     completion|element_completion|
                      cmdline_aliases|
                      cmdline_src|
                      x
@@ -589,7 +590,8 @@ sub handle_args {
 
         my $sch = $as->{schema};
         if ($sch) {
-            my $has_default = ref($sch) eq 'ARRAY' &&
+            my $has_default_prop = exists($as->{default});
+            my $has_sch_default  = ref($sch) eq 'ARRAY' &&
                 exists($sch->[1]{default}) ? 1:0;
             if ($va) {
                 my $dn = $an; $dn =~ s/\W+/_/g;
@@ -611,7 +613,12 @@ sub handle_args {
                     400, qq["Invalid value for argument '$an': \$err_$dn"],
                     "\$err_$dn");
                 $self->unindent;
-                if ($has_default) {
+                if ($has_default_prop) {
+                    $self->push_lines(
+                        '} else {',
+                        "    $at //= ".__squote($as->{default}).";",
+                        '}');
+                } elsif ($has_sch_default) {
                     $self->push_lines(
                         '} else {',
                         "    $at //= ".__squote($sch->[1]{default}).";",
@@ -620,9 +627,13 @@ sub handle_args {
                     $self->push_lines('}');
                 }
             } else {
-                $self->push_lines(
-                    "$at //= ".__squote($sch->[1]{default}).';')
-                    if $has_default;
+                if ($has_default_prop) {
+                    $self->push_lines(
+                        "$at //= ".__squote($as->{default}).';');
+                } elsif ($has_sch_default) {
+                    $self->push_lines(
+                        "$at //= ".__squote($sch->[1]{default}).';');
+                }
             }
         }
         if ($as->{req}) {
@@ -1322,7 +1333,7 @@ __END__
 
 =pod
 
-=encoding utf-8
+=encoding UTF-8
 
 =head1 NAME
 
@@ -1330,7 +1341,7 @@ Perinci::Sub::Wrapper - A multi-purpose subroutine wrapping framework
 
 =head1 VERSION
 
-version 0.47
+version 0.48
 
 =head1 SYNOPSIS
 
@@ -1586,9 +1597,9 @@ the same terms as the Perl 5 programming language system itself.
 =head1 FUNCTIONS
 
 
-None are exported by default, but they are exportable.
-
 =head2 wrap_all_subs(%args) -> [status, msg, result, meta]
+
+Wrap all subroutines in a package and replace them with the wrapped version.
 
 This function will search all subroutines in a package which have metadata, wrap
 them, then replace the original subroutines and metadata with the wrapped
@@ -1628,6 +1639,8 @@ Return value:
 Returns an enveloped result (an array). First element (status) is an integer containing HTTP status code (200 means OK, 4xx caller error, 5xx function error). Second element (msg) is a string containing error message, or 'OK' if status is 200. Third element (result) is optional, the actual result. Fourth element (meta) is called result metadata and is optional, a hash that contains extra information.
 
 =head2 wrap_sub(%args) -> [status, msg, result, meta]
+
+Wrap subroutine to do various things, like enforcing Rinci properties.
 
 Will wrap subroutine and bless the generated wrapped subroutine (by default into
 C<Perinci::Sub::Wrapped>) as a way of marking that the subroutine is a wrapped

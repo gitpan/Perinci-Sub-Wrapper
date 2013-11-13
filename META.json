@@ -4,7 +4,7 @@
       "Steven Haryanto <stevenharyanto@gmail.com>"
    ],
    "dynamic_config" : 0,
-   "generated_by" : "Dist::Zilla version 4.300038, CPAN::Meta::Converter version 2.132510",
+   "generated_by" : "Dist::Zilla version 5.006, CPAN::Meta::Converter version 2.132830",
    "license" : [
       "perl_5"
    ],
@@ -56,6 +56,6 @@
          "url" : "http://github.com/sharyanto/perl-Perinci-Sub-Wrapper"
       }
    },
-   "version" : "0.47"
+   "version" : "0.48"
 }
 

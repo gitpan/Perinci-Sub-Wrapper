@@ -10,7 +10,7 @@ use Test::More 0.96;
 our @ISA = qw(Exporter);
 our @EXPORT_OK = qw(test_wrap);
 
-our $VERSION = '0.47'; # VERSION
+our $VERSION = '0.48'; # VERSION
 
 sub test_wrap {
     my %test_args = @_;
@@ -132,7 +132,7 @@ __END__
 
 =pod
 
-=encoding utf-8
+=encoding UTF-8
 
 =head1 NAME
 
@@ -140,7 +140,7 @@ Test::Perinci::Sub::Wrapper - Provide test_wrap() to test wrapper
 
 =head1 VERSION
 
-version 0.47
+version 0.48
 
 =for Pod::Coverage test_wrap
 
@@ -154,12 +154,5 @@ This software is copyright (c) 2013 by Steven Haryanto.
 
 This is free software; you can redistribute it and/or modify it under
 the same terms as the Perl 5 programming language system itself.
-
-=head1 DESCRIPTION
-
-=head1 FUNCTIONS
-
-
-None are exported by default, but they are exportable.
 
 =cut

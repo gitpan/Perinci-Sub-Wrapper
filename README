@@ -2,7 +2,7 @@ NAME
     Perinci::Sub::Wrapper - A multi-purpose subroutine wrapping framework
 
 VERSION
-    version 0.47
+    version 0.48
 
 SYNOPSIS
      use Perinci::Sub::Wrapper qw(wrap_sub);
@@ -243,9 +243,10 @@ COPYRIGHT AND LICENSE
     the same terms as the Perl 5 programming language system itself.
 
 FUNCTIONS
-    None are exported by default, but they are exportable.
-
   wrap_all_subs(%args) -> [status, msg, result, meta]
+    Wrap all subroutines in a package and replace them with the wrapped
+    version.
+
     This function will search all subroutines in a package which have
     metadata, wrap them, then replace the original subroutines and metadata
     with the wrapped version.
@@ -287,6 +288,8 @@ FUNCTIONS
     is optional, a hash that contains extra information.
 
   wrap_sub(%args) -> [status, msg, result, meta]
+    Wrap subroutine to do various things, like enforcing Rinci properties.
+
     Will wrap subroutine and bless the generated wrapped subroutine (by
     default into "Perinci::Sub::Wrapped") as a way of marking that the
     subroutine is a wrapped one.
