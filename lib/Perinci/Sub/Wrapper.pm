@@ -14,7 +14,7 @@ our @EXPORT_OK = qw(wrap_sub wrap_all_subs wrapped);
 
 our $Log_Wrapper_Code = $ENV{LOG_PERINCI_WRAPPER_CODE} // 0;
 
-our $VERSION = '0.48'; # VERSION
+our $VERSION = '0.49'; # VERSION
 
 our %SPEC;
 
@@ -530,7 +530,7 @@ sub handle_args {
 
     # normalize schema
     if ($ns) {
-        for my $an (keys %$v) {
+        for my $an (sort keys %$v) {
             my $as = $v->{$an};
             if ($as->{schema}) {
                 $as->{schema} =
@@ -538,7 +538,7 @@ sub handle_args {
             }
             my $als = $as->{cmdline_aliases};
             if ($als) {
-                for my $al (keys %$als) {
+                for my $al (sort keys %$als) {
                     if ($als->{$al}{schema}) {
                         $als->{$al}{schema} =
                             $self->_sah->normalize_schema($als->{$al}{schema});
@@ -552,14 +552,14 @@ sub handle_args {
     $self->push_lines('', '# check arguments');
 
     unless ($self->{_args}{allow_invalid_args}) {
-        $self->push_lines('for (keys %args) {');
+        $self->push_lines('for (sort keys %args) {');
         $self->indent;
         $self->_errif(400, q["Invalid argument name '$_'"],
                       '!/\A(-?)\w+(\.\w+)*\z/o');
         unless ($self->{_args}{allow_unknown_args}) {
             $self->_errif(
                 400, q["Unknown argument '$_'"],
-                '!($1 || $_ ~~ '.__squote([keys %$v]).')');
+                '!($1 || $_ ~~ '.__squote([sort keys %$v]).')');
         }
         $self->unindent;
         $self->push_lines('}');
@@ -582,6 +582,7 @@ sub handle_args {
                      completion|element_completion|
                      cmdline_aliases|
                      cmdline_src|
+                     cmdline_on_getopt|
                      x
                  )(\..+)?\z/x;
         }
@@ -699,7 +700,7 @@ sub handle_result {
         $self->push_lines("my \$res2 = \$res->[2];");
         $self->push_lines("my \$err2_res;");
 
-        for my $s (keys %ss) {
+        for my $s (sort keys %ss) {
             my $sch = $ss{$s};
             my $cd = $self->_plc->compile(
                 data_name            => 'res2',
@@ -1341,7 +1342,7 @@ Perinci::Sub::Wrapper - A multi-purpose subroutine wrapping framework
 
 =head1 VERSION
 
-version 0.48
+version 0.49
 
 =head1 SYNOPSIS
 
@@ -1370,6 +1371,240 @@ even though the function accepts positional arguments, or vice versa.
 There are many other possible uses.
 
 This module uses L<Log::Any> for logging.
+
+=head1 FUNCTIONS
+
+
+=head2 wrap_all_subs(%args) -> [status, msg, result, meta]
+
+{en_US Wrap all subroutines in a package and replace them with the wrapped version}.
+
+{en_US 
+This function will search all subroutines in a package which have metadata, wrap
+them, then replace the original subroutines and metadata with the wrapped
+version.
+
+One common use case is to put something like this at the bottom of your module:
+
+    Perinci::Sub::Wrapper::wrap_all_subs();
+
+to wrap ("protect") all your module's subroutines and discard the original
+unwrapped version.
+}
+
+Arguments ('*' denotes required arguments):
+
+=over 4
+
+=item * B<package> => I<str>
+
+{en_US Wrap all subroutines in a package and replace them with the wrapped version}.
+
+{en_US 
+This function will search all subroutines in a package which have metadata, wrap
+them, then replace the original subroutines and metadata with the wrapped
+version.
+
+One common use case is to put something like this at the bottom of your module:
+
+    Perinci::Sub::Wrapper::wrap_all_subs();
+
+to wrap ("protect") all your module's subroutines and discard the original
+unwrapped version.
+}
+
+=item * B<wrap_args> => I<hash>
+
+{en_US Wrap all subroutines in a package and replace them with the wrapped version}.
+
+{en_US 
+This function will search all subroutines in a package which have metadata, wrap
+them, then replace the original subroutines and metadata with the wrapped
+version.
+
+One common use case is to put something like this at the bottom of your module:
+
+    Perinci::Sub::Wrapper::wrap_all_subs();
+
+to wrap ("protect") all your module's subroutines and discard the original
+unwrapped version.
+}
+
+=back
+
+Return value:
+
+Returns an enveloped result (an array). First element (status) is an integer containing HTTP status code (200 means OK, 4xx caller error, 5xx function error). Second element (msg) is a string containing error message, or 'OK' if status is 200. Third element (result) is optional, the actual result. Fourth element (meta) is called result metadata and is optional, a hash that contains extra information.
+
+=head2 wrap_sub(%args) -> [status, msg, result, meta]
+
+{en_US Wrap subroutine to do various things, like enforcing Rinci properties}.
+
+{en_US 
+Will wrap subroutine and bless the generated wrapped subroutine (by default into
+C<Perinci::Sub::Wrapped>) as a way of marking that the subroutine is a wrapped
+one.
+}
+
+Arguments ('*' denotes required arguments):
+
+=over 4
+
+=item * B<allow_invalid_args> => I<bool> (default: 0)
+
+{en_US Wrap subroutine to do various things, like enforcing Rinci properties}.
+
+{en_US 
+Will wrap subroutine and bless the generated wrapped subroutine (by default into
+C<Perinci::Sub::Wrapped>) as a way of marking that the subroutine is a wrapped
+one.
+}
+
+=item * B<allow_unknown_args> => I<bool> (default: 0)
+
+{en_US Wrap subroutine to do various things, like enforcing Rinci properties}.
+
+{en_US 
+Will wrap subroutine and bless the generated wrapped subroutine (by default into
+C<Perinci::Sub::Wrapped>) as a way of marking that the subroutine is a wrapped
+one.
+}
+
+=item * B<compile> => I<bool> (default: 1)
+
+{en_US Wrap subroutine to do various things, like enforcing Rinci properties}.
+
+{en_US 
+Will wrap subroutine and bless the generated wrapped subroutine (by default into
+C<Perinci::Sub::Wrapped>) as a way of marking that the subroutine is a wrapped
+one.
+}
+
+=item * B<convert> => I<hash>
+
+{en_US Wrap subroutine to do various things, like enforcing Rinci properties}.
+
+{en_US 
+Will wrap subroutine and bless the generated wrapped subroutine (by default into
+C<Perinci::Sub::Wrapped>) as a way of marking that the subroutine is a wrapped
+one.
+}
+
+=item * B<debug> => I<bool> (default: 0)
+
+{en_US Wrap subroutine to do various things, like enforcing Rinci properties}.
+
+{en_US 
+Will wrap subroutine and bless the generated wrapped subroutine (by default into
+C<Perinci::Sub::Wrapped>) as a way of marking that the subroutine is a wrapped
+one.
+}
+
+=item * B<forbid_tags> => I<array>
+
+{en_US Wrap subroutine to do various things, like enforcing Rinci properties}.
+
+{en_US 
+Will wrap subroutine and bless the generated wrapped subroutine (by default into
+C<Perinci::Sub::Wrapped>) as a way of marking that the subroutine is a wrapped
+one.
+}
+
+=item * B<meta>* => I<hash>
+
+{en_US Wrap subroutine to do various things, like enforcing Rinci properties}.
+
+{en_US 
+Will wrap subroutine and bless the generated wrapped subroutine (by default into
+C<Perinci::Sub::Wrapped>) as a way of marking that the subroutine is a wrapped
+one.
+}
+
+=item * B<normalize_schemas> => I<bool> (default: 1)
+
+{en_US Wrap subroutine to do various things, like enforcing Rinci properties}.
+
+{en_US 
+Will wrap subroutine and bless the generated wrapped subroutine (by default into
+C<Perinci::Sub::Wrapped>) as a way of marking that the subroutine is a wrapped
+one.
+}
+
+=item * B<remove_internal_properties> => I<bool> (default: 1)
+
+{en_US Wrap subroutine to do various things, like enforcing Rinci properties}.
+
+{en_US 
+Will wrap subroutine and bless the generated wrapped subroutine (by default into
+C<Perinci::Sub::Wrapped>) as a way of marking that the subroutine is a wrapped
+one.
+}
+
+=item * B<skip> => I<array>
+
+{en_US Wrap subroutine to do various things, like enforcing Rinci properties}.
+
+{en_US 
+Will wrap subroutine and bless the generated wrapped subroutine (by default into
+C<Perinci::Sub::Wrapped>) as a way of marking that the subroutine is a wrapped
+one.
+}
+
+=item * B<sub> => I<code>
+
+{en_US Wrap subroutine to do various things, like enforcing Rinci properties}.
+
+{en_US 
+Will wrap subroutine and bless the generated wrapped subroutine (by default into
+C<Perinci::Sub::Wrapped>) as a way of marking that the subroutine is a wrapped
+one.
+}
+
+=item * B<sub_name> => I<str>
+
+{en_US Wrap subroutine to do various things, like enforcing Rinci properties}.
+
+{en_US 
+Will wrap subroutine and bless the generated wrapped subroutine (by default into
+C<Perinci::Sub::Wrapped>) as a way of marking that the subroutine is a wrapped
+one.
+}
+
+=item * B<trap> => I<bool> (default: 1)
+
+{en_US Wrap subroutine to do various things, like enforcing Rinci properties}.
+
+{en_US 
+Will wrap subroutine and bless the generated wrapped subroutine (by default into
+C<Perinci::Sub::Wrapped>) as a way of marking that the subroutine is a wrapped
+one.
+}
+
+=item * B<validate_args> => I<bool> (default: 1)
+
+{en_US Wrap subroutine to do various things, like enforcing Rinci properties}.
+
+{en_US 
+Will wrap subroutine and bless the generated wrapped subroutine (by default into
+C<Perinci::Sub::Wrapped>) as a way of marking that the subroutine is a wrapped
+one.
+}
+
+=item * B<validate_result> => I<bool> (default: 1)
+
+{en_US Wrap subroutine to do various things, like enforcing Rinci properties}.
+
+{en_US 
+Will wrap subroutine and bless the generated wrapped subroutine (by default into
+C<Perinci::Sub::Wrapped>) as a way of marking that the subroutine is a wrapped
+one.
+}
+
+=back
+
+Return value:
+
+Returns an enveloped result (an array). First element (status) is an integer containing HTTP status code (200 means OK, 4xx caller error, 5xx function error). Second element (msg) is a string containing error message, or 'OK' if status is 200. Third element (result) is optional, the actual result. Fourth element (meta) is called result metadata and is optional, a hash that contains extra information.
 
 =for Pod::Coverage ^(new|handle(meta)?_.+|wrap|add_.+|section_empty|indent|unindent|get_indent_level|select_section|push_lines)$
 
@@ -1583,6 +1818,22 @@ source code, should there be such a demand.
 
 L<Perinci>
 
+=head1 HOMEPAGE
+
+Please visit the project's homepage at L<https://metacpan.org/release/Perinci-Sub-Wrapper>.
+
+=head1 SOURCE
+
+Source repository is at L<https://github.com/sharyanto/perl-Perinci-Sub-Wrapper>.
+
+=head1 BUGS
+
+Please report any bugs or feature requests on the bugtracker website L<https://rt.cpan.org/Public/Dist/Display.html?Name=Perinci-Sub-Wrapper>
+
+When submitting a bug or request, please include a test-file or a
+patch to an existing test-file that illustrates the bug or desired
+feature.
+
 =head1 AUTHOR
 
 Steven Haryanto <stevenharyanto@gmail.com>
@@ -1593,191 +1844,5 @@ This software is copyright (c) 2013 by Steven Haryanto.
 
 This is free software; you can redistribute it and/or modify it under
 the same terms as the Perl 5 programming language system itself.
-
-=head1 FUNCTIONS
-
-
-=head2 wrap_all_subs(%args) -> [status, msg, result, meta]
-
-Wrap all subroutines in a package and replace them with the wrapped version.
-
-This function will search all subroutines in a package which have metadata, wrap
-them, then replace the original subroutines and metadata with the wrapped
-version.
-
-One common use case is to put something like this at the bottom of your module:
-
-    Perinci::Sub::Wrapper::wrap_all_subs();
-
-to wrap ("protect") all your module's subroutines and discard the original
-unwrapped version.
-
-Arguments ('*' denotes required arguments):
-
-=over 4
-
-=item * B<package> => I<str>
-
-Package to search subroutines in.
-
-Default is caller package.
-
-=item * B<wrap_args> => I<hash>
-
-Arguments to pass to wrap_sub().
-
-Each subroutine will be wrapped by wrapI<sub(). This argument specifies what
-arguments to pass to wrap>sub().
-
-Note: If you need different arguments for different subroutine, perhaps this
-function is not for you. You can perform your own loop and wrap_sub().
-
-=back
-
-Return value:
-
-Returns an enveloped result (an array). First element (status) is an integer containing HTTP status code (200 means OK, 4xx caller error, 5xx function error). Second element (msg) is a string containing error message, or 'OK' if status is 200. Third element (result) is optional, the actual result. Fourth element (meta) is called result metadata and is optional, a hash that contains extra information.
-
-=head2 wrap_sub(%args) -> [status, msg, result, meta]
-
-Wrap subroutine to do various things, like enforcing Rinci properties.
-
-Will wrap subroutine and bless the generated wrapped subroutine (by default into
-C<Perinci::Sub::Wrapped>) as a way of marking that the subroutine is a wrapped
-one.
-
-Arguments ('*' denotes required arguments):
-
-=over 4
-
-=item * B<allow_invalid_args> => I<bool> (default: 0)
-
-Whether to allow invalid arguments.
-
-By default, wrapper will require that all argument names are valid
-(C</\A-?\w+\z/>), except when this option is turned on.
-
-=item * B<allow_unknown_args> => I<bool> (default: 0)
-
-Whether to allow unknown arguments.
-
-By default, this setting is set to false, which means that wrapper will require
-that all arguments are specified in C<args> property, except for special
-arguments (those started with underscore), which will be allowed nevertheless.
-Will only be done if C<allow_invalid_args> is set to false.
-
-=item * B<compile> => I<bool> (default: 1)
-
-Whether to compile the generated wrapper.
-
-Can be set to 0 to not actually wrap but just return the generated wrapper
-source code.
-
-=item * B<convert> => I<hash>
-
-Properties to convert to new value.
-
-Not all properties can be converted, but these are a partial list of those that
-can: v (usually do not need to be specified when converting from 1.0 to 1.1,
-will be done automatically), argsI<as, result>naked, default_lang.
-
-=item * B<debug> => I<bool> (default: 0)
-
-Generate code with debugging.
-
-If turned on, will produce various debugging in the generated code. Currently
-what this does:
-
-=over
-
-=item *
-
-add more comments (e.g. for each property handler)
-
-
-=back
-
-=item * B<forbid_tags> => I<array>
-
-Forbid properties which have certain wrapping tags.
-
-Some property wrapper, like diesI<on>error (see
-Perinci::Sub::Property::diesI<on>error) has tags 'die', to signify that it can
-cause wrapping code to die.
-
-Sometimes such properties are not desirable, e.g. in daemon environment. The use
-of such properties can be forbidden using this setting.
-
-=item * B<meta>* => I<hash>
-
-The function metadata.
-
-=item * B<normalize_schemas> => I<bool> (default: 1)
-
-Whether to normalize schemas in metadata.
-
-By default, wrapper normalize Sah schemas in metadata, like in 'args' or
-'result' property, for convenience so that it does not need to be normalized
-again prior to use. If you want to turn off this behaviour, set to false.
-
-=item * B<remove_internal_properties> => I<bool> (default: 1)
-
-Whether to remove properties prefixed with _.
-
-By default, wrapper removes internal properties (properties which start with
-underscore) in the new metadata. Set this to false to keep them.
-
-=item * B<skip> => I<array>
-
-Properties to skip (treat as if they do not exist in metadata).
-
-=item * B<sub> => I<code>
-
-The code to wrap.
-
-Either C<sub> or C<sub_name> must be supplied.
-
-If generated wrapper code is to be saved to disk or used by another process,
-then C<sub_name> is required.
-
-=item * B<sub_name> => I<str>
-
-The fully qualified name of the subroutine, e.g. Foo::func.
-
-Either C<sub> or C<sub_name> must be supplied.
-
-If generated wrapper code is to be saved to disk or used by another process,
-then C<sub_name> is required.
-
-=item * B<trap> => I<bool> (default: 1)
-
-Whether to trap exception using an eval block.
-
-If set to true, will wrap call using an eval {} block and return 500 /undef if
-function dies. Note that if some other properties requires an eval block (like
-'timeout') an eval block will be added regardless of this parameter.
-
-=item * B<validate_args> => I<bool> (default: 1)
-
-Whether wrapper should validate arguments.
-
-If set to true, will validate arguments. Validation error will cause status 400
-to be returned. This will only be done for arguments which has C<schema> arg spec
-key. Will not be done if C<args> property is skipped.
-
-=item * B<validate_result> => I<bool> (default: 1)
-
-Whether wrapper should validate arguments.
-
-If set to true, will validate sub's result. Validation error will cause wrapper
-to return status 500 instead of sub's result. This will only be done if C<schema>
-or C<statuses> keys are set in the C<result> property. Will not be done if
-C<result> property is skipped.
-
-=back
-
-Return value:
-
-Returns an enveloped result (an array). First element (status) is an integer containing HTTP status code (200 means OK, 4xx caller error, 5xx function error). Second element (msg) is a string containing error message, or 'OK' if status is 200. Third element (result) is optional, the actual result. Fourth element (meta) is called result metadata and is optional, a hash that contains extra information.
 
 =cut
