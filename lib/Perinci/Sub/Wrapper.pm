@@ -14,7 +14,7 @@ our @EXPORT_OK = qw(wrap_sub wrap_all_subs wrapped);
 
 our $Log_Wrapper_Code = $ENV{LOG_PERINCI_WRAPPER_CODE} // 0;
 
-our $VERSION = '0.49'; # VERSION
+our $VERSION = '0.50'; # VERSION
 
 our %SPEC;
 
@@ -998,6 +998,7 @@ sub wrap {
         # _needs_eval will automatically be enabled here, due after_eval being
         # filled
         $self->select_section('after_eval');
+        $self->push_lines('warn $eval_err if $eval_err;');
         $self->_errif(500, '"Function died: $eval_err"', '$eval_err');
     }
 
@@ -1342,7 +1343,7 @@ Perinci::Sub::Wrapper - A multi-purpose subroutine wrapping framework
 
 =head1 VERSION
 
-version 0.49
+version 0.50
 
 =head1 SYNOPSIS
 
@@ -1377,9 +1378,8 @@ This module uses L<Log::Any> for logging.
 
 =head2 wrap_all_subs(%args) -> [status, msg, result, meta]
 
-{en_US Wrap all subroutines in a package and replace them with the wrapped version}.
+Wrap all subroutines in a package and replace them with the wrapped version.
 
-{en_US 
 This function will search all subroutines in a package which have metadata, wrap
 them, then replace the original subroutines and metadata with the wrapped
 version.
@@ -1390,7 +1390,6 @@ One common use case is to put something like this at the bottom of your module:
 
 to wrap ("protect") all your module's subroutines and discard the original
 unwrapped version.
-}
 
 Arguments ('*' denotes required arguments):
 
@@ -1398,9 +1397,8 @@ Arguments ('*' denotes required arguments):
 
 =item * B<package> => I<str>
 
-{en_US Wrap all subroutines in a package and replace them with the wrapped version}.
+Wrap all subroutines in a package and replace them with the wrapped version.
 
-{en_US 
 This function will search all subroutines in a package which have metadata, wrap
 them, then replace the original subroutines and metadata with the wrapped
 version.
@@ -1411,13 +1409,11 @@ One common use case is to put something like this at the bottom of your module:
 
 to wrap ("protect") all your module's subroutines and discard the original
 unwrapped version.
-}
 
 =item * B<wrap_args> => I<hash>
 
-{en_US Wrap all subroutines in a package and replace them with the wrapped version}.
+Wrap all subroutines in a package and replace them with the wrapped version.
 
-{en_US 
 This function will search all subroutines in a package which have metadata, wrap
 them, then replace the original subroutines and metadata with the wrapped
 version.
@@ -1428,7 +1424,6 @@ One common use case is to put something like this at the bottom of your module:
 
 to wrap ("protect") all your module's subroutines and discard the original
 unwrapped version.
-}
 
 =back
 
@@ -1438,13 +1433,11 @@ Returns an enveloped result (an array). First element (status) is an integer con
 
 =head2 wrap_sub(%args) -> [status, msg, result, meta]
 
-{en_US Wrap subroutine to do various things, like enforcing Rinci properties}.
+Wrap subroutine to do various things, like enforcing Rinci properties.
 
-{en_US 
 Will wrap subroutine and bless the generated wrapped subroutine (by default into
 C<Perinci::Sub::Wrapped>) as a way of marking that the subroutine is a wrapped
 one.
-}
 
 Arguments ('*' denotes required arguments):
 
@@ -1452,153 +1445,123 @@ Arguments ('*' denotes required arguments):
 
 =item * B<allow_invalid_args> => I<bool> (default: 0)
 
-{en_US Wrap subroutine to do various things, like enforcing Rinci properties}.
+Wrap subroutine to do various things, like enforcing Rinci properties.
 
-{en_US 
 Will wrap subroutine and bless the generated wrapped subroutine (by default into
 C<Perinci::Sub::Wrapped>) as a way of marking that the subroutine is a wrapped
 one.
-}
 
 =item * B<allow_unknown_args> => I<bool> (default: 0)
 
-{en_US Wrap subroutine to do various things, like enforcing Rinci properties}.
+Wrap subroutine to do various things, like enforcing Rinci properties.
 
-{en_US 
 Will wrap subroutine and bless the generated wrapped subroutine (by default into
 C<Perinci::Sub::Wrapped>) as a way of marking that the subroutine is a wrapped
 one.
-}
 
 =item * B<compile> => I<bool> (default: 1)
 
-{en_US Wrap subroutine to do various things, like enforcing Rinci properties}.
+Wrap subroutine to do various things, like enforcing Rinci properties.
 
-{en_US 
 Will wrap subroutine and bless the generated wrapped subroutine (by default into
 C<Perinci::Sub::Wrapped>) as a way of marking that the subroutine is a wrapped
 one.
-}
 
 =item * B<convert> => I<hash>
 
-{en_US Wrap subroutine to do various things, like enforcing Rinci properties}.
+Wrap subroutine to do various things, like enforcing Rinci properties.
 
-{en_US 
 Will wrap subroutine and bless the generated wrapped subroutine (by default into
 C<Perinci::Sub::Wrapped>) as a way of marking that the subroutine is a wrapped
 one.
-}
 
 =item * B<debug> => I<bool> (default: 0)
 
-{en_US Wrap subroutine to do various things, like enforcing Rinci properties}.
+Wrap subroutine to do various things, like enforcing Rinci properties.
 
-{en_US 
 Will wrap subroutine and bless the generated wrapped subroutine (by default into
 C<Perinci::Sub::Wrapped>) as a way of marking that the subroutine is a wrapped
 one.
-}
 
 =item * B<forbid_tags> => I<array>
 
-{en_US Wrap subroutine to do various things, like enforcing Rinci properties}.
+Wrap subroutine to do various things, like enforcing Rinci properties.
 
-{en_US 
 Will wrap subroutine and bless the generated wrapped subroutine (by default into
 C<Perinci::Sub::Wrapped>) as a way of marking that the subroutine is a wrapped
 one.
-}
 
 =item * B<meta>* => I<hash>
 
-{en_US Wrap subroutine to do various things, like enforcing Rinci properties}.
+Wrap subroutine to do various things, like enforcing Rinci properties.
 
-{en_US 
 Will wrap subroutine and bless the generated wrapped subroutine (by default into
 C<Perinci::Sub::Wrapped>) as a way of marking that the subroutine is a wrapped
 one.
-}
 
 =item * B<normalize_schemas> => I<bool> (default: 1)
 
-{en_US Wrap subroutine to do various things, like enforcing Rinci properties}.
+Wrap subroutine to do various things, like enforcing Rinci properties.
 
-{en_US 
 Will wrap subroutine and bless the generated wrapped subroutine (by default into
 C<Perinci::Sub::Wrapped>) as a way of marking that the subroutine is a wrapped
 one.
-}
 
 =item * B<remove_internal_properties> => I<bool> (default: 1)
 
-{en_US Wrap subroutine to do various things, like enforcing Rinci properties}.
+Wrap subroutine to do various things, like enforcing Rinci properties.
 
-{en_US 
 Will wrap subroutine and bless the generated wrapped subroutine (by default into
 C<Perinci::Sub::Wrapped>) as a way of marking that the subroutine is a wrapped
 one.
-}
 
 =item * B<skip> => I<array>
 
-{en_US Wrap subroutine to do various things, like enforcing Rinci properties}.
+Wrap subroutine to do various things, like enforcing Rinci properties.
 
-{en_US 
 Will wrap subroutine and bless the generated wrapped subroutine (by default into
 C<Perinci::Sub::Wrapped>) as a way of marking that the subroutine is a wrapped
 one.
-}
 
 =item * B<sub> => I<code>
 
-{en_US Wrap subroutine to do various things, like enforcing Rinci properties}.
+Wrap subroutine to do various things, like enforcing Rinci properties.
 
-{en_US 
 Will wrap subroutine and bless the generated wrapped subroutine (by default into
 C<Perinci::Sub::Wrapped>) as a way of marking that the subroutine is a wrapped
 one.
-}
 
 =item * B<sub_name> => I<str>
 
-{en_US Wrap subroutine to do various things, like enforcing Rinci properties}.
+Wrap subroutine to do various things, like enforcing Rinci properties.
 
-{en_US 
 Will wrap subroutine and bless the generated wrapped subroutine (by default into
 C<Perinci::Sub::Wrapped>) as a way of marking that the subroutine is a wrapped
 one.
-}
 
 =item * B<trap> => I<bool> (default: 1)
 
-{en_US Wrap subroutine to do various things, like enforcing Rinci properties}.
+Wrap subroutine to do various things, like enforcing Rinci properties.
 
-{en_US 
 Will wrap subroutine and bless the generated wrapped subroutine (by default into
 C<Perinci::Sub::Wrapped>) as a way of marking that the subroutine is a wrapped
 one.
-}
 
 =item * B<validate_args> => I<bool> (default: 1)
 
-{en_US Wrap subroutine to do various things, like enforcing Rinci properties}.
+Wrap subroutine to do various things, like enforcing Rinci properties.
 
-{en_US 
 Will wrap subroutine and bless the generated wrapped subroutine (by default into
 C<Perinci::Sub::Wrapped>) as a way of marking that the subroutine is a wrapped
 one.
-}
 
 =item * B<validate_result> => I<bool> (default: 1)
 
-{en_US Wrap subroutine to do various things, like enforcing Rinci properties}.
+Wrap subroutine to do various things, like enforcing Rinci properties.
 
-{en_US 
 Will wrap subroutine and bless the generated wrapped subroutine (by default into
 C<Perinci::Sub::Wrapped>) as a way of marking that the subroutine is a wrapped
 one.
-}
 
 =back
 
@@ -1840,7 +1803,7 @@ Steven Haryanto <stevenharyanto@gmail.com>
 
 =head1 COPYRIGHT AND LICENSE
 
-This software is copyright (c) 2013 by Steven Haryanto.
+This software is copyright (c) 2014 by Steven Haryanto.
 
 This is free software; you can redistribute it and/or modify it under
 the same terms as the Perl 5 programming language system itself.

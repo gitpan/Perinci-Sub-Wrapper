@@ -2,7 +2,7 @@ NAME
     Perinci::Sub::Wrapper - A multi-purpose subroutine wrapping framework
 
 VERSION
-    version 0.49
+    version 0.50
 
 SYNOPSIS
      use Perinci::Sub::Wrapper qw(wrap_sub);
@@ -34,10 +34,10 @@ DESCRIPTION
 
 FUNCTIONS
   wrap_all_subs(%args) -> [status, msg, result, meta]
-    {en_US Wrap all subroutines in a package and replace them with the
-    wrapped version}.
+    Wrap all subroutines in a package and replace them with the wrapped
+    version.
 
-    {en_US This function will search all subroutines in a package which have
+    This function will search all subroutines in a package which have
     metadata, wrap them, then replace the original subroutines and metadata
     with the wrapped version.
 
@@ -47,17 +47,17 @@ FUNCTIONS
         Perinci::Sub::Wrapper::wrap_all_subs();
 
     to wrap ("protect") all your module's subroutines and discard the
-    original unwrapped version. }
+    original unwrapped version.
 
     Arguments ('*' denotes required arguments):
 
     *   package => *str*
 
-        {en_US Wrap all subroutines in a package and replace them with the
-        wrapped version}.
+        Wrap all subroutines in a package and replace them with the wrapped
+        version.
 
-        {en_US This function will search all subroutines in a package which
-        have metadata, wrap them, then replace the original subroutines and
+        This function will search all subroutines in a package which have
+        metadata, wrap them, then replace the original subroutines and
         metadata with the wrapped version.
 
         One common use case is to put something like this at the bottom of
@@ -66,15 +66,15 @@ FUNCTIONS
             Perinci::Sub::Wrapper::wrap_all_subs();
 
         to wrap ("protect") all your module's subroutines and discard the
-        original unwrapped version. }
+        original unwrapped version.
 
     *   wrap_args => *hash*
 
-        {en_US Wrap all subroutines in a package and replace them with the
-        wrapped version}.
+        Wrap all subroutines in a package and replace them with the wrapped
+        version.
 
-        {en_US This function will search all subroutines in a package which
-        have metadata, wrap them, then replace the original subroutines and
+        This function will search all subroutines in a package which have
+        metadata, wrap them, then replace the original subroutines and
         metadata with the wrapped version.
 
         One common use case is to put something like this at the bottom of
@@ -83,7 +83,7 @@ FUNCTIONS
             Perinci::Sub::Wrapper::wrap_all_subs();
 
         to wrap ("protect") all your module's subroutines and discard the
-        original unwrapped version. }
+        original unwrapped version.
 
     Return value:
 
@@ -95,149 +95,148 @@ FUNCTIONS
     is optional, a hash that contains extra information.
 
   wrap_sub(%args) -> [status, msg, result, meta]
-    {en_US Wrap subroutine to do various things, like enforcing Rinci
-    properties}.
+    Wrap subroutine to do various things, like enforcing Rinci properties.
 
-    {en_US Will wrap subroutine and bless the generated wrapped subroutine
-    (by default into "Perinci::Sub::Wrapped") as a way of marking that the
-    subroutine is a wrapped one. }
+    Will wrap subroutine and bless the generated wrapped subroutine (by
+    default into "Perinci::Sub::Wrapped") as a way of marking that the
+    subroutine is a wrapped one.
 
     Arguments ('*' denotes required arguments):
 
     *   allow_invalid_args => *bool* (default: 0)
 
-        {en_US Wrap subroutine to do various things, like enforcing Rinci
-        properties}.
+        Wrap subroutine to do various things, like enforcing Rinci
+        properties.
 
-        {en_US Will wrap subroutine and bless the generated wrapped
-        subroutine (by default into "Perinci::Sub::Wrapped") as a way of
-        marking that the subroutine is a wrapped one. }
+        Will wrap subroutine and bless the generated wrapped subroutine (by
+        default into "Perinci::Sub::Wrapped") as a way of marking that the
+        subroutine is a wrapped one.
 
     *   allow_unknown_args => *bool* (default: 0)
 
-        {en_US Wrap subroutine to do various things, like enforcing Rinci
-        properties}.
+        Wrap subroutine to do various things, like enforcing Rinci
+        properties.
 
-        {en_US Will wrap subroutine and bless the generated wrapped
-        subroutine (by default into "Perinci::Sub::Wrapped") as a way of
-        marking that the subroutine is a wrapped one. }
+        Will wrap subroutine and bless the generated wrapped subroutine (by
+        default into "Perinci::Sub::Wrapped") as a way of marking that the
+        subroutine is a wrapped one.
 
     *   compile => *bool* (default: 1)
 
-        {en_US Wrap subroutine to do various things, like enforcing Rinci
-        properties}.
+        Wrap subroutine to do various things, like enforcing Rinci
+        properties.
 
-        {en_US Will wrap subroutine and bless the generated wrapped
-        subroutine (by default into "Perinci::Sub::Wrapped") as a way of
-        marking that the subroutine is a wrapped one. }
+        Will wrap subroutine and bless the generated wrapped subroutine (by
+        default into "Perinci::Sub::Wrapped") as a way of marking that the
+        subroutine is a wrapped one.
 
     *   convert => *hash*
 
-        {en_US Wrap subroutine to do various things, like enforcing Rinci
-        properties}.
+        Wrap subroutine to do various things, like enforcing Rinci
+        properties.
 
-        {en_US Will wrap subroutine and bless the generated wrapped
-        subroutine (by default into "Perinci::Sub::Wrapped") as a way of
-        marking that the subroutine is a wrapped one. }
+        Will wrap subroutine and bless the generated wrapped subroutine (by
+        default into "Perinci::Sub::Wrapped") as a way of marking that the
+        subroutine is a wrapped one.
 
     *   debug => *bool* (default: 0)
 
-        {en_US Wrap subroutine to do various things, like enforcing Rinci
-        properties}.
+        Wrap subroutine to do various things, like enforcing Rinci
+        properties.
 
-        {en_US Will wrap subroutine and bless the generated wrapped
-        subroutine (by default into "Perinci::Sub::Wrapped") as a way of
-        marking that the subroutine is a wrapped one. }
+        Will wrap subroutine and bless the generated wrapped subroutine (by
+        default into "Perinci::Sub::Wrapped") as a way of marking that the
+        subroutine is a wrapped one.
 
     *   forbid_tags => *array*
 
-        {en_US Wrap subroutine to do various things, like enforcing Rinci
-        properties}.
+        Wrap subroutine to do various things, like enforcing Rinci
+        properties.
 
-        {en_US Will wrap subroutine and bless the generated wrapped
-        subroutine (by default into "Perinci::Sub::Wrapped") as a way of
-        marking that the subroutine is a wrapped one. }
+        Will wrap subroutine and bless the generated wrapped subroutine (by
+        default into "Perinci::Sub::Wrapped") as a way of marking that the
+        subroutine is a wrapped one.
 
     *   meta* => *hash*
 
-        {en_US Wrap subroutine to do various things, like enforcing Rinci
-        properties}.
+        Wrap subroutine to do various things, like enforcing Rinci
+        properties.
 
-        {en_US Will wrap subroutine and bless the generated wrapped
-        subroutine (by default into "Perinci::Sub::Wrapped") as a way of
-        marking that the subroutine is a wrapped one. }
+        Will wrap subroutine and bless the generated wrapped subroutine (by
+        default into "Perinci::Sub::Wrapped") as a way of marking that the
+        subroutine is a wrapped one.
 
     *   normalize_schemas => *bool* (default: 1)
 
-        {en_US Wrap subroutine to do various things, like enforcing Rinci
-        properties}.
+        Wrap subroutine to do various things, like enforcing Rinci
+        properties.
 
-        {en_US Will wrap subroutine and bless the generated wrapped
-        subroutine (by default into "Perinci::Sub::Wrapped") as a way of
-        marking that the subroutine is a wrapped one. }
+        Will wrap subroutine and bless the generated wrapped subroutine (by
+        default into "Perinci::Sub::Wrapped") as a way of marking that the
+        subroutine is a wrapped one.
 
     *   remove_internal_properties => *bool* (default: 1)
 
-        {en_US Wrap subroutine to do various things, like enforcing Rinci
-        properties}.
+        Wrap subroutine to do various things, like enforcing Rinci
+        properties.
 
-        {en_US Will wrap subroutine and bless the generated wrapped
-        subroutine (by default into "Perinci::Sub::Wrapped") as a way of
-        marking that the subroutine is a wrapped one. }
+        Will wrap subroutine and bless the generated wrapped subroutine (by
+        default into "Perinci::Sub::Wrapped") as a way of marking that the
+        subroutine is a wrapped one.
 
     *   skip => *array*
 
-        {en_US Wrap subroutine to do various things, like enforcing Rinci
-        properties}.
+        Wrap subroutine to do various things, like enforcing Rinci
+        properties.
 
-        {en_US Will wrap subroutine and bless the generated wrapped
-        subroutine (by default into "Perinci::Sub::Wrapped") as a way of
-        marking that the subroutine is a wrapped one. }
+        Will wrap subroutine and bless the generated wrapped subroutine (by
+        default into "Perinci::Sub::Wrapped") as a way of marking that the
+        subroutine is a wrapped one.
 
     *   sub => *code*
 
-        {en_US Wrap subroutine to do various things, like enforcing Rinci
-        properties}.
+        Wrap subroutine to do various things, like enforcing Rinci
+        properties.
 
-        {en_US Will wrap subroutine and bless the generated wrapped
-        subroutine (by default into "Perinci::Sub::Wrapped") as a way of
-        marking that the subroutine is a wrapped one. }
+        Will wrap subroutine and bless the generated wrapped subroutine (by
+        default into "Perinci::Sub::Wrapped") as a way of marking that the
+        subroutine is a wrapped one.
 
     *   sub_name => *str*
 
-        {en_US Wrap subroutine to do various things, like enforcing Rinci
-        properties}.
+        Wrap subroutine to do various things, like enforcing Rinci
+        properties.
 
-        {en_US Will wrap subroutine and bless the generated wrapped
-        subroutine (by default into "Perinci::Sub::Wrapped") as a way of
-        marking that the subroutine is a wrapped one. }
+        Will wrap subroutine and bless the generated wrapped subroutine (by
+        default into "Perinci::Sub::Wrapped") as a way of marking that the
+        subroutine is a wrapped one.
 
     *   trap => *bool* (default: 1)
 
-        {en_US Wrap subroutine to do various things, like enforcing Rinci
-        properties}.
+        Wrap subroutine to do various things, like enforcing Rinci
+        properties.
 
-        {en_US Will wrap subroutine and bless the generated wrapped
-        subroutine (by default into "Perinci::Sub::Wrapped") as a way of
-        marking that the subroutine is a wrapped one. }
+        Will wrap subroutine and bless the generated wrapped subroutine (by
+        default into "Perinci::Sub::Wrapped") as a way of marking that the
+        subroutine is a wrapped one.
 
     *   validate_args => *bool* (default: 1)
 
-        {en_US Wrap subroutine to do various things, like enforcing Rinci
-        properties}.
+        Wrap subroutine to do various things, like enforcing Rinci
+        properties.
 
-        {en_US Will wrap subroutine and bless the generated wrapped
-        subroutine (by default into "Perinci::Sub::Wrapped") as a way of
-        marking that the subroutine is a wrapped one. }
+        Will wrap subroutine and bless the generated wrapped subroutine (by
+        default into "Perinci::Sub::Wrapped") as a way of marking that the
+        subroutine is a wrapped one.
 
     *   validate_result => *bool* (default: 1)
 
-        {en_US Wrap subroutine to do various things, like enforcing Rinci
-        properties}.
+        Wrap subroutine to do various things, like enforcing Rinci
+        properties.
 
-        {en_US Will wrap subroutine and bless the generated wrapped
-        subroutine (by default into "Perinci::Sub::Wrapped") as a way of
-        marking that the subroutine is a wrapped one. }
+        Will wrap subroutine and bless the generated wrapped subroutine (by
+        default into "Perinci::Sub::Wrapped") as a way of marking that the
+        subroutine is a wrapped one.
 
     Return value:
 
@@ -468,7 +467,7 @@ AUTHOR
     Steven Haryanto <stevenharyanto@gmail.com>
 
 COPYRIGHT AND LICENSE
-    This software is copyright (c) 2013 by Steven Haryanto.
+    This software is copyright (c) 2014 by Steven Haryanto.
 
     This is free software; you can redistribute it and/or modify it under
     the same terms as the Perl 5 programming language system itself.
