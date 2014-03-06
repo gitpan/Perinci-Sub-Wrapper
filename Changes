@@ -1,8 +1,64 @@
 Revision history for Perinci-Sub-Wrapper
 
+0.51     2014-03-06 (SHARYANTO)
+
+         - This release removes some features to make the module simpler and has
+           less overhead for simpler cases. The wrapper is now also able to
+           generate code appropriate for embedding directly into source code
+           during build (see Dist::Zilla::Plugin::Rinci::Wrap for more details).
+
+         [NEW FEATURES]
+
+         - New option embed=>1 to generate code suitable for embedding/insertion
+           to existing code. Most users need not use it directly; instead, use
+           Dist::Zilla::Plugin::Rinci::Wrap instead.
+
+         - Add option log=>1 (enabled by default) to generate wrap log (instead
+           of blessing the subroutine). This log contains information that can
+           help avoid duplicating argument validation, etc.
+
+         [REMOVED FEATURES]
+
+         - Remove option: remove_internal_properties (becomes internal
+           _remove_internal_properties).
+
+         - Remove options: allow_invalid_args and allow_unknown_args (they are
+           regulated by validate_args).
+
+         - Remove option: normalize_schema (becomes internal
+           _schema_is_normalized).
+
+         - Remove option: skip (unused).
+
+         - Remove option: trap (automatically will generate trap if needed).
+
+         - Remove option: forbid_tags (unused; currently only used to forbid
+           properties that generate 'die', but since we'll trap at the level of
+           Perinci::Access::Perl and Perinci::Access::HTTP::Server instead of
+           function wrapper, this is okay).
+
+         - Remove function: wrap_all_subs() (unused)
+
+         - Remove the reading of _perinci.sub.wrapper.* meta attributes (replace
+           it with x.perinci.sub.wrapper.log).
+
+         - Remove the reading of PERINCI_WRAPPER_VALIDATE_ARGS.
+
+         [INTERNAL]
+
+         - All variables in the generated code are now prefixed by '_w_' to
+           reduce the possibility of clash. The one exception is 'args'
+           (%args/@args/$args).
+
+         - Wrapper code is more minimalistic when there are not much to do (e.g.
+           validate_args=>0, validate_result=>0), to reduce overhead and clutter
+           (especially when embed=>1).
+
+
 0.50     2014-01-03 (SHARYANTO)
 
-         - wrapper: Rethrow (warn()) exception when wrapped function dies.
+         - wrapper: Rethrow (warn()) exception when wrapped function dies, to
+           aid debugging.
 
 
 0.49     2013-12-25 (SHARYANTO)
