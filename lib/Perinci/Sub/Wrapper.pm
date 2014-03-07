@@ -13,7 +13,7 @@ our @EXPORT_OK = qw(wrap_sub);
 
 our $Log_Wrapper_Code = $ENV{LOG_PERINCI_WRAPPER_CODE} // 0;
 
-our $VERSION = '0.51'; # VERSION
+our $VERSION = '0.52'; # VERSION
 
 our %SPEC;
 
@@ -104,7 +104,7 @@ sub _known_sections {
         before_call => {order=>30},
 
         # used e.g. to load modules used by validation
-        before_call_before_arg_validation => {order=>32},
+        before_call_before_arg_validation => {order=>31},
 
         before_call_arg_validation => {order=>32},
 
@@ -1042,13 +1042,17 @@ sub wrap {
         # already done it
         !(grep {$_->{validate_result}} @$wrap_logs);
 
+    my $sub_ref_name;
     # if sub_name is not provided, create a unique name for it. it is needed by
     # the wrapper-generated code (e.g. printing error messages)
-    if (!$sub_name) {
+    if (!$sub_name || $sub) {
         my $n = $comppkg . "::sub".Scalar::Util::refaddr($sub);
         no strict 'refs'; no warnings; ${$n} = $sub;
         use experimental 'smartmatch';
-        $args{sub_name} = $sub_name = '$' . $n;
+        if (!$sub_name) {
+            $args{sub_name} = $sub_name = '$' . $n;
+        }
+        $sub_ref_name = '$' . $n;
     }
     # if meta name is not provided, we store the meta somewhere, it is needed by
     # the wrapper-generated code (e.g. deps clause).
@@ -1127,7 +1131,7 @@ sub wrap {
         my $meth = "handlemeta_$k";
         unless ($self->can($meth)) {
             # try a property module first
-            eval { require "Perinci/Sub/Property/$k.pm" };
+            require "Perinci/Sub/Property/$k.pm";
             unless ($self->can($meth)) {
                 return [500, "No handler for property $k0 ($meth)"];
             }
@@ -1169,9 +1173,10 @@ sub wrap {
     }
 
     $self->select_section('CALL');
+    my $sn = $sub_ref_name // $sub_name;
     $self->push_lines(
         ($needs_store_res ? '$_w_res = ' : "") .
-        $sub_name. ($sub_name =~ /^\$/ ? "->" : "").
+        $sn. ($sn =~ /^\$/ ? "->" : "").
             "(".$self->{_args_token}.");");
     if ($args{validate_result}) {
         $self->select_section('AFTER_CALL');
@@ -1201,13 +1206,16 @@ sub wrap {
         }
     }
 
-    if ($self->_needs_eval) {
+    my $use_eval = $self->_needs_eval;
+    if ($use_eval) {
         $self->select_section('CLOSE_EVAL');
         $self->push_lines('return $_w_res;');
         $self->unindent;
+        $self->_add_var('_w_eval_err');
         $self->push_lines(
             '};',
-            'my $_w_eval_err = $@;');
+            '$_w_eval_err = $@;');
+
         # _needs_eval will automatically be enabled here, due after_eval being
         # filled
         $self->select_section('after_eval');
@@ -1237,7 +1245,13 @@ sub wrap {
     }
 
     # return wrap result
-    my $result = {sub_name=>$sub_name, meta=>$meta, meta_name=>$meta_name};
+    my $result = {
+        sub_name     => $sub_name,
+        sub_ref_name => $sub_ref_name,
+        meta         => $meta,
+        meta_name    => $meta_name,
+        use_eval     => $use_eval,
+    };
     if ($args{embed}) {
         $result->{source} = $self->_format_embed_wrapper_code;
     } else {
@@ -1407,7 +1421,7 @@ Perinci::Sub::Wrapper - A multi-purpose subroutine wrapping framework
 
 =head1 VERSION
 
-version 0.51
+version 0.52
 
 =head1 SYNOPSIS
 

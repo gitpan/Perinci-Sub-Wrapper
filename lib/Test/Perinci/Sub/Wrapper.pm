@@ -11,7 +11,7 @@ use Test::More 0.96;
 our @ISA = qw(Exporter);
 our @EXPORT_OK = qw(test_wrap);
 
-our $VERSION = '0.51'; # VERSION
+our $VERSION = '0.52'; # VERSION
 
 sub test_wrap {
     my %test_args = @_;
@@ -20,6 +20,10 @@ sub test_wrap {
 
     for my $wrapper_type (qw/dynamic embed/) {
         subtest "$test_name ($wrapper_type)" => sub {
+
+            if ($test_args{pretest}) {
+                $test_args{pretest}->();
+            }
 
             my $wrap_args = clone $test_args{wrap_args};
             die "BUG: embed must not be specified in wrap_args, test_wrap() ".
@@ -183,6 +187,7 @@ sub test_wrap {
             }
 
             done_testing();
+
         }; # subtest
     } # for $wrapper_type
 }
@@ -202,7 +207,7 @@ Test::Perinci::Sub::Wrapper - Provide test_wrap() to test wrapper
 
 =head1 VERSION
 
-version 0.51
+version 0.52
 
 =for Pod::Coverage test_wrap
 
