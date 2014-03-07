@@ -13,7 +13,7 @@ our @EXPORT_OK = qw(wrap_sub);
 
 our $Log_Wrapper_Code = $ENV{LOG_PERINCI_WRAPPER_CODE} // 0;
 
-our $VERSION = '0.52'; # VERSION
+our $VERSION = '0.53'; # VERSION
 
 our %SPEC;
 
@@ -800,6 +800,7 @@ sub handle_args {
                     schema_is_normalized => !$opt_sin,
                     return_type          => 'str',
                     indent_level         => $self->get_indent_level + 4,
+                    %{ $self->{_args}{_extra_sah_compiler_args} // {}},
                 );
                 $self->_add_module($_) for @{ $cd->{modules} };
                 $self->_add_var($_, $cd->{vars}{$_})
@@ -906,6 +907,7 @@ sub handle_result {
                 schema_is_normalized => $opt_sin,
                 return_type          => 'str',
                 indent_level         => $self->get_indent_level + 4,
+                %{ $self->{_args}{_extra_sah_compiler_args} // {}},
             );
             $self->_add_module($_) for @{ $cd->{modules} };
             $self->_add_var($_, $cd->{vars}{$_})
@@ -1027,6 +1029,7 @@ sub wrap {
         $wrap_logs->[-1] && $wrap_logs->[-1]{normalize_schema} ? 1 : 0;
     $args{_remove_internal_properties} //= 1;
     $args{_embed}                      //= 0;
+    $args{_extra_sah_compiler_args}    //= undef;
 
     # defaults for arguments
     $args{indent}                      //= " " x 4;
@@ -1085,7 +1088,13 @@ sub wrap {
             validate_result   => $args{validate_result},
             normalize_schema  => !$opt_sin,
         };
-        $meta->{$wrap_log_prop} = \@wrap_log if $args{log};
+        if ($args{log}) {
+            $meta->{$wrap_log_prop} = \@wrap_log;
+            {
+                local $wrap_log[-1]{embed} = 1;
+                $self->line_modify_meta($wrap_log_prop, \@wrap_log);
+            }
+        }
     }
 
     # start iterating over properties
@@ -1232,7 +1241,7 @@ sub wrap {
     $self->push_lines('return $_w_res;') if $needs_store_res;
     $self->select_section('CLOSE_SUB');
     $self->unindent;
-    $self->push_lines('} # wrapper sub');
+    $self->push_lines('}'); # wrapper sub
 
     unless ($self->section_empty('MODIFY_META')) {
         $self->select_section('BEFORE_MODIFY_META');
@@ -1241,7 +1250,7 @@ sub wrap {
         $self->push_lines('my $meta = '.$self->{_args}{meta_name}.';');
         $self->select_section('MODIFY_META');
         $self->unindent;
-        $self->push_lines('} # modify meta');
+        $self->push_lines('}'); # modify meta
     }
 
     # return wrap result
@@ -1421,7 +1430,7 @@ Perinci::Sub::Wrapper - A multi-purpose subroutine wrapping framework
 
 =head1 VERSION
 
-version 0.52
+version 0.53
 
 =head1 SYNOPSIS
 
