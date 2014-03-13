@@ -2,7 +2,7 @@ NAME
     Perinci::Sub::Wrapper - A multi-purpose subroutine wrapping framework
 
 VERSION
-    version 0.54
+    version 0.55
 
 SYNOPSIS
     For dynamic usage:

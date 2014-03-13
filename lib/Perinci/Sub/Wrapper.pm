@@ -13,7 +13,7 @@ our @EXPORT_OK = qw(wrap_sub);
 
 our $Log_Wrapper_Code = $ENV{LOG_PERINCI_WRAPPER_CODE} // 0;
 
-our $VERSION = '0.54'; # VERSION
+our $VERSION = '0.55'; # VERSION
 
 our %SPEC;
 
@@ -129,6 +129,8 @@ sub _known_sections {
         after_call_before_res_validation => {order=>61},
 
         after_call_res_validation => {order=>62},
+
+        after_call_after_res_validation => {order=>63},
 
         # reserved by wrapper to put eval end '}' and capturing result in
         # $_w_res and $@ in $eval_err
@@ -1430,7 +1432,7 @@ Perinci::Sub::Wrapper - A multi-purpose subroutine wrapping framework
 
 =head1 VERSION
 
-version 0.54
+version 0.55
 
 =head1 SYNOPSIS
 
