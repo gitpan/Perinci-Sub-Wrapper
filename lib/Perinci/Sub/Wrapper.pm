@@ -13,7 +13,7 @@ our @EXPORT_OK = qw(wrap_sub);
 
 our $Log_Wrapper_Code = $ENV{LOG_PERINCI_WRAPPER_CODE} // 0;
 
-our $VERSION = '0.55'; # VERSION
+our $VERSION = '0.56'; # VERSION
 
 our %SPEC;
 
@@ -1012,7 +1012,7 @@ sub wrap {
 
     my ($self, %args) = @_;
 
-    my $wrap_log_prop = "x.perinci.sub.wrapper.log";
+    my $wrap_log_prop = "x.perinci.sub.wrapper.logs";
 
     # required arguments
     my $sub      = $args{sub};
@@ -1299,7 +1299,7 @@ properties changed, e.g. schema in `args` and `result` normalized, some values
 changed according to the `convert` argument, some defaults set, etc.
 
 The new metadata will also contain (or append) the wrapping log located in the
-`x.perinci.sub.wrapper.log` attribute. The wrapping log marks that the wrapper
+`x.perinci.sub.wrapper.logs` attribute. The wrapping log marks that the wrapper
 has added some functionality (like validating arguments or result) so that
 future nested wrapper can choose to avoid duplicating the same functionality.
 
@@ -1432,7 +1432,7 @@ Perinci::Sub::Wrapper - A multi-purpose subroutine wrapping framework
 
 =head1 VERSION
 
-version 0.55
+version 0.56
 
 =head1 SYNOPSIS
 
@@ -1527,39 +1527,74 @@ Arguments ('*' denotes required arguments):
 
 =item * B<compile> => I<bool> (default: 1)
 
-Wrap subroutine to do various things, like enforcing Rinci properties.
+Whether to compile the generated wrapper.
+
+Can be set to 0 to not actually wrap but just return the generated wrapper
+source code.
 
 =item * B<convert> => I<hash>
 
-Wrap subroutine to do various things, like enforcing Rinci properties.
+Properties to convert to new value.
+
+Not all properties can be converted, but these are a partial list of those that
+can: v (usually do not need to be specified when converting from 1.0 to 1.1,
+will be done automatically), argsI<as, result>naked, default_lang.
 
 =item * B<debug> => I<bool> (default: 0)
 
-Wrap subroutine to do various things, like enforcing Rinci properties.
+Generate code with debugging.
+
+If turned on, will produce various debugging in the generated code. Currently
+what this does:
+
+=over
+
+=item *
+
+add more comments (e.g. for each property handler)
+
+
+=back
 
 =item * B<meta>* => I<hash>
 
-Wrap subroutine to do various things, like enforcing Rinci properties.
+The function metadata.
 
 =item * B<meta_name> => I<str>
 
-Wrap subroutine to do various things, like enforcing Rinci properties.
+Where to find the metadata, e.g. "$SPEC{foo}".
+
+Some wrapper code (e.g. handler for C<dep> property) needs to refer to the
+function metadata. If not provided, the wrapper will store the function metadata
+in a unique variable (e.g. C<$Perinci::Sub::Wrapped::meta34127816>).
 
 =item * B<sub> => I<str>
 
-Wrap subroutine to do various things, like enforcing Rinci properties.
+The code to be wrapped.
+
+At least one of C<sub> or C<sub_name> must be specified.
 
 =item * B<sub_name> => I<str>
 
-Wrap subroutine to do various things, like enforcing Rinci properties.
+The name of the subroutine, e.g. func or Foo::func (qualified).
+
+At least one of C<sub> or C<sub_name> must be specified.
 
 =item * B<validate_args> => I<bool>
 
-Wrap subroutine to do various things, like enforcing Rinci properties.
+Whether wrapper should validate arguments.
+
+If set to true, will validate arguments. Validation error will cause status 400
+to be returned. The default is to enable this unless previous wrapper(s) have
+already done this.
 
 =item * B<validate_result> => I<bool>
 
-Wrap subroutine to do various things, like enforcing Rinci properties.
+Whether wrapper should validate arguments.
+
+If set to true, will validate sub's result. Validation error will cause wrapper
+to return status 500 instead of sub's result. The default is to enable this
+unless previous wrapper(s) have already done this.
 
 =back
 

@@ -2,7 +2,7 @@ NAME
     Perinci::Sub::Wrapper - A multi-purpose subroutine wrapping framework
 
 VERSION
-    version 0.55
+    version 0.56
 
 SYNOPSIS
     For dynamic usage:
@@ -92,48 +92,70 @@ FUNCTIONS
 
     *   compile => *bool* (default: 1)
 
-        Wrap subroutine to do various things, like enforcing Rinci
-        properties.
+        Whether to compile the generated wrapper.
+
+        Can be set to 0 to not actually wrap but just return the generated
+        wrapper source code.
 
     *   convert => *hash*
 
-        Wrap subroutine to do various things, like enforcing Rinci
-        properties.
+        Properties to convert to new value.
+
+        Not all properties can be converted, but these are a partial list of
+        those that can: v (usually do not need to be specified when
+        converting from 1.0 to 1.1, will be done automatically), args*as,
+        result*naked, default_lang.
 
     *   debug => *bool* (default: 0)
 
-        Wrap subroutine to do various things, like enforcing Rinci
-        properties.
+        Generate code with debugging.
+
+        If turned on, will produce various debugging in the generated code.
+        Currently what this does:
+
+        *   add more comments (e.g. for each property handler)
 
     *   meta* => *hash*
 
-        Wrap subroutine to do various things, like enforcing Rinci
-        properties.
+        The function metadata.
 
     *   meta_name => *str*
 
-        Wrap subroutine to do various things, like enforcing Rinci
-        properties.
+        Where to find the metadata, e.g. "$SPEC{foo}".
+
+        Some wrapper code (e.g. handler for "dep" property) needs to refer
+        to the function metadata. If not provided, the wrapper will store
+        the function metadata in a unique variable (e.g.
+        $Perinci::Sub::Wrapped::meta34127816).
 
     *   sub => *str*
 
-        Wrap subroutine to do various things, like enforcing Rinci
-        properties.
+        The code to be wrapped.
+
+        At least one of "sub" or "sub_name" must be specified.
 
     *   sub_name => *str*
 
-        Wrap subroutine to do various things, like enforcing Rinci
-        properties.
+        The name of the subroutine, e.g. func or Foo::func (qualified).
+
+        At least one of "sub" or "sub_name" must be specified.
 
     *   validate_args => *bool*
 
-        Wrap subroutine to do various things, like enforcing Rinci
-        properties.
+        Whether wrapper should validate arguments.
+
+        If set to true, will validate arguments. Validation error will cause
+        status 400 to be returned. The default is to enable this unless
+        previous wrapper(s) have already done this.
 
     *   validate_result => *bool*
 
-        Wrap subroutine to do various things, like enforcing Rinci
-        properties.
+        Whether wrapper should validate arguments.
+
+        If set to true, will validate sub's result. Validation error will
+        cause wrapper to return status 500 instead of sub's result. The
+        default is to enable this unless previous wrapper(s) have already
+        done this.
 
     Return value:
 
