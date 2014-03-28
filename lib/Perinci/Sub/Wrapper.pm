@@ -13,7 +13,7 @@ our @EXPORT_OK = qw(wrap_sub);
 
 our $Log_Wrapper_Code = $ENV{LOG_PERINCI_WRAPPER_CODE} // 0;
 
-our $VERSION = '0.56'; # VERSION
+our $VERSION = '0.57'; # VERSION
 
 our %SPEC;
 
@@ -98,11 +98,6 @@ sub _known_sections {
         # reserved by wrapper for generating 'eval {'
         OPEN_EVAL => {order=>20},
 
-        # for handlers to put various checks before calling the wrapped sub,
-        # from data validation, argument conversion, etc. this is now
-        # deprecated. see various before_call_* instead.
-        before_call => {order=>30},
-
         # used e.g. to load modules used by validation
         before_call_before_arg_validation => {order=>31},
 
@@ -112,18 +107,20 @@ sub _known_sections {
         before_call_after_arg_validation => {order=>33},
 
         # feed arguments to sub
-        before_call_feed_args => {order=>49},
+        before_call_feed_args => {order=>48},
+
+        # for handlers that *must* do stuffs right before call
+        before_call_right_before_call => {order=>49},
 
         # reserved by the wrapper for calling the sub
         CALL => {order=>50},
 
-        # reserved by the wrapper for doing stuffs after call
-        AFTER_CALL => {order=>51},
+        # for handlers that *must* do stuffs right after call
+        after_call_right_after_call => {order=>51},
 
-        # for handlers to put various things after calling, from validating
-        # result, enveloping result, etc. this is now deprecated. see various
-        # after_call_* instead.
-        after_call => {order=>60},
+        # reserved by the wrapper for adding/stripping result envelope, this
+        # happens before result validation
+        AFTER_CALL_ADD_OR_STRIP_RESULT_ENVELOPE => {order=>52},
 
         # used e.g. to load modules used by validation
         after_call_before_res_validation => {order=>61},
@@ -840,7 +837,8 @@ sub handle_result {
 
     my ($self, %args) = @_;
 
-    my $v = $self->{_meta}{result};
+    my $meta = $self->{_meta};
+    my $v = $meta->{result};
     return unless $v;
 
     my $opt_sin = $self->{_args}{_schema_is_normalized};
@@ -873,10 +871,52 @@ sub handle_result {
         }
     }
 
-    for my $k (keys %$v) {
-        if ($k =~ /^_/) {
-            delete $v->{$k} if $opt_rip;
+    # collect and check handlers
+    my %handler_args;
+    my %handler_metas;
+    for my $k0 (keys %$v) {
+        if ($k0 =~ /^_/) {
+            delete $v->{$k0} if $opt_rip;
+            next;
         }
+        my $k = $k0;
+        $k =~ s/\..+//;
+
+        # check builtin result spec key
+        next if $k =~ /\A(
+                           summary|description|tags|default_lang|
+                           schema|
+                           x
+                       )\z/x;
+        # try a property module first
+        require "Perinci/Sub/Property/result/$k.pm";
+        my $meth = "handlemeta_result__$k";
+        unless ($self->can($meth)) {
+            die "No handler for property result/$k0 ($meth)";
+        }
+        my $hm = $self->$meth;
+        $hm->{v} //= 1;
+        next unless defined $hm->{prio};
+        die "Please update property handler result/$k which is still at v=$hm->{v} ".
+            "(needs v=$protocol_version)"
+                unless $hm->{v} == $protocol_version;
+        my $ha = {
+            prio=>$hm->{prio}, value=>$v->{$k0}, property=>$k0,
+            meth=>"handle_result__$k",
+        };
+        $handler_args{$k} = $ha;
+        $handler_metas{$k} = $hm;
+    }
+
+    # call all the handlers in order
+    for my $k (sort {$handler_args{$a}{prio} <=> $handler_args{$b}{prio}}
+                   keys %handler_args) {
+        my $ha = $handler_args{$k};
+        my $meth = $ha->{meth};
+        local $self->{_cur_handler}      = $meth;
+        local $self->{_cur_handler_meta} = $handler_metas{$k};
+        local $self->{_cur_handler_args} = $ha;
+        $self->$meth(args=>\%args, meta=>$meta, %$ha);
     }
 
     # validate result
@@ -928,7 +968,7 @@ sub handle_result {
     }
 }
 
-sub handlemeta_result_naked { {v=>2, prio=>100, convert=>1} }
+sub handlemeta_result_naked { {v=>2, prio=>99, convert=>1} }
 sub handle_result_naked {
     my ($self, %args) = @_;
 
@@ -938,18 +978,16 @@ sub handle_result_naked {
     return if !!$v == !!$old;
     $self->line_modify_meta(result_naked => $v ? 1:0);
 
-    $self->select_section('after_eval');
+    $self->select_section('AFTER_CALL_ADD_OR_STRIP_RESULT_ENVELOPE');
     if ($v) {
         $self->push_lines(
             '', '# strip result envelope',
             '$_w_res = $_w_res->[2];',
-            '',
         );
     } else {
         $self->push_lines(
             '', '# add result envelope',
             '$_w_res = [200, "OK", $_w_res];',
-            '',
         );
     }
 }
@@ -984,10 +1022,10 @@ sub handle_deps {
     }
 }
 
-sub handlemeta_x { {v=>2, prio=>99} }
+sub handlemeta_x { {v=>2, prio=>100} }
 sub handle_x {}
 
-sub handlemeta_entity_v { {v=>2, prio=>99} }
+sub handlemeta_entity_v { {v=>2, prio=>100} }
 sub handle_entity_v {}
 
 sub _reset_work_data {
@@ -1190,7 +1228,7 @@ sub wrap {
         $sn. ($sn =~ /^\$/ ? "->" : "").
             "(".$self->{_args_token}.");");
     if ($args{validate_result}) {
-        $self->select_section('AFTER_CALL');
+        $self->select_section('after_call_before_res_validation');
         unless ($meta->{result_naked}) {
             $self->push_lines(
                 '',
@@ -1432,7 +1470,7 @@ Perinci::Sub::Wrapper - A multi-purpose subroutine wrapping framework
 
 =head1 VERSION
 
-version 0.56
+version 0.57
 
 =head1 SYNOPSIS
 
@@ -1600,7 +1638,14 @@ unless previous wrapper(s) have already done this.
 
 Return value:
 
-Returns an enveloped result (an array). First element (status) is an integer containing HTTP status code (200 means OK, 4xx caller error, 5xx function error). Second element (msg) is a string containing error message, or 'OK' if status is 200. Third element (result) is optional, the actual result. Fourth element (meta) is called result metadata and is optional, a hash that contains extra information.
+Returns an enveloped result (an array).
+
+First element (status) is an integer containing HTTP status code
+(200 means OK, 4xx caller error, 5xx function error). Second element
+(msg) is a string containing error message, or 'OK' if status is
+200. Third element (result) is optional, the actual result. Fourth
+element (meta) is called result metadata and is optional, a hash
+that contains extra information.
 
 =for Pod::Coverage ^(new|handle(meta)?_.+|line_modify_meta|wrap|add_.+|section_empty|indent|unindent|get_indent_level|select_section|push_lines)$
 
