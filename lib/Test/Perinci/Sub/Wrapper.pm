@@ -4,14 +4,14 @@ use 5.010;
 use strict;
 use warnings;
 
-use Data::Clone;
+use Function::Fallback::CoreOrPP qw(clone);
 use Perinci::Sub::Wrapper qw(wrap_sub);
 use Test::More 0.96;
 
 our @ISA = qw(Exporter);
 our @EXPORT_OK = qw(test_wrap);
 
-our $VERSION = '0.57'; # VERSION
+our $VERSION = '0.58'; # VERSION
 
 sub test_wrap {
     my %test_args = @_;
@@ -25,7 +25,7 @@ sub test_wrap {
                 $test_args{pretest}->();
             }
 
-            my $wrap_args = clone $test_args{wrap_args};
+            my $wrap_args = clone($test_args{wrap_args});
             die "BUG: embed must not be specified in wrap_args, test_wrap() ".
                 "will always test dynamic (embed=0) *and* embed mode"
                     if exists $wrap_args->{embed};
@@ -207,7 +207,7 @@ Test::Perinci::Sub::Wrapper - Provide test_wrap() to test wrapper
 
 =head1 VERSION
 
-version 0.57
+version 0.58
 
 =for Pod::Coverage test_wrap
 

@@ -6,6 +6,7 @@ use warnings;
 use experimental 'smartmatch';
 use Log::Any '$log';
 
+use Function::Fallback::CoreOrPP qw(clone);
 use Perinci::Sub::Util qw(err);
 
 use Exporter qw(import);
@@ -13,7 +14,7 @@ our @EXPORT_OK = qw(wrap_sub);
 
 our $Log_Wrapper_Code = $ENV{LOG_PERINCI_WRAPPER_CODE} // 0;
 
-our $VERSION = '0.57'; # VERSION
+our $VERSION = '0.58'; # VERSION
 
 our %SPEC;
 
@@ -1045,7 +1046,6 @@ sub _reset_work_data {
 }
 
 sub wrap {
-    require Data::Clone;
     require Scalar::Util;
 
     my ($self, %args) = @_;
@@ -1059,7 +1059,7 @@ sub wrap {
     $args{meta} or return [400, "Please specify meta"];
     my $meta_name = $args{meta_name};
     # we clone the meta because we'll replace stuffs
-    my $meta     = Data::Clone::clone($args{meta});
+    my $meta     = clone($args{meta});
     my $wrap_logs = $meta->{$wrap_log_prop} // [];
 
     # currently internal args, not exposed/documented
@@ -1470,7 +1470,7 @@ Perinci::Sub::Wrapper - A multi-purpose subroutine wrapping framework
 
 =head1 VERSION
 
-version 0.57
+version 0.58
 
 =head1 SYNOPSIS
 
