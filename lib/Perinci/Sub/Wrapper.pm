@@ -15,7 +15,7 @@ our @EXPORT_OK = qw(wrap_sub);
 
 our $Log_Wrapper_Code = $ENV{LOG_PERINCI_WRAPPER_CODE} // 0;
 
-our $VERSION = '0.59'; # VERSION
+our $VERSION = '0.60'; # VERSION
 our $DATE = '2014-04-30'; # DATE
 
 our %SPEC;
@@ -895,6 +895,7 @@ sub wrap {
     for my $k0 (keys %props) {
         my $k = $k0;
         $k =~ s/\..+//;
+        next if $k =~ /\A_/;
         next if $handler_args{$k};
         #if ($k ~~ $self->{_args}{skip}) {
         #    $log->tracef("Skipped property %s (mentioned in skip)", $k);
@@ -1184,7 +1185,7 @@ Perinci::Sub::Wrapper - A multi-purpose subroutine wrapping framework
 
 =head1 VERSION
 
-This document describes version 0.59 of Perinci::Sub::Wrapper (from Perl distribution Perinci-Sub-Wrapper), released on 2014-04-30.
+This document describes version 0.60 of Perinci::Sub::Wrapper (from Perl distribution Perinci-Sub-Wrapper), released on 2014-04-30.
 
 =head1 SYNOPSIS
 

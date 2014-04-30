@@ -62,7 +62,7 @@
          "web" : "https://github.com/sharyanto/perl-Perinci-Sub-Wrapper"
       }
    },
-   "version" : "0.59",
+   "version" : "0.60",
    "x_Dist_Zilla" : {
       "perl" : {
          "version" : "5.018001"
