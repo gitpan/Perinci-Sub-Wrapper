@@ -33,6 +33,7 @@
             "Function::Fallback::CoreOrPP" : "0",
             "Log::Any" : "0",
             "Perinci::Sub::DepChecker" : "0.06",
+            "Perinci::Sub::Normalize" : "0.04",
             "Perinci::Sub::Util" : "0",
             "Rinci" : "v1.1.43",
             "SHARYANTO::String::Util" : "0.22",
@@ -61,10 +62,10 @@
          "web" : "https://github.com/sharyanto/perl-Perinci-Sub-Wrapper"
       }
    },
-   "version" : "0.58",
+   "version" : "0.59",
    "x_Dist_Zilla" : {
       "perl" : {
-         "version" : "5.018002"
+         "version" : "5.018001"
       },
       "plugins" : [
          {
@@ -168,9 +169,9 @@
             "version" : "5.015"
          },
          {
-            "class" : "Dist::Zilla::Plugin::SHARYANTO::OurPkgVersion",
-            "name" : "@Author::SHARYANTO/SHARYANTO::OurPkgVersion",
-            "version" : "0.02"
+            "class" : "Dist::Zilla::Plugin::OurDate",
+            "name" : "@Author::SHARYANTO/OurDate",
+            "version" : "0.01"
          },
          {
             "class" : "Dist::Zilla::Plugin::PodWeaver",
@@ -306,6 +307,11 @@
             "class" : "Dist::Zilla::Plugin::Rinci::Validate",
             "name" : "@Author::SHARYANTO/Rinci::Validate",
             "version" : "0.12"
+         },
+         {
+            "class" : "Dist::Zilla::Plugin::SHARYANTO::OurPkgVersion",
+            "name" : "@Author::SHARYANTO/SHARYANTO::OurPkgVersion",
+            "version" : "0.02"
          },
          {
             "class" : "Dist::Zilla::Plugin::Test::Compile",

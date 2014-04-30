@@ -12,7 +12,6 @@ lib/Test/Perinci/Sub/Wrapper.pm
 t/00-compile.t
 t/00-sanity.t
 t/01-basics.t
-t/opt-_remove_internal_properties.t
 t/opt-_schema_is_normalized.t
 t/opt-log.t
 t/opt-sub_name.t
@@ -20,12 +19,10 @@ t/opt-validate_args.t
 t/opt-validate_result.t
 t/prop-args.t
 t/prop-args_as.t
-t/prop-default_lang.t
 t/prop-deps.t
 t/prop-features.t
 t/prop-result.t
 t/prop-result_naked.t
-t/prop-v.t
 t/release-pod-coverage.t
 t/release-pod-syntax.t
 t/release-rinci.t
