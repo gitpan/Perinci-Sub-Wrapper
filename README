@@ -2,8 +2,8 @@ NAME
     Perinci::Sub::Wrapper - A multi-purpose subroutine wrapping framework
 
 VERSION
-    This document describes version 0.60 of Perinci::Sub::Wrapper (from Perl
-    distribution Perinci-Sub-Wrapper), released on 2014-04-30.
+    This document describes version 0.61 of Perinci::Sub::Wrapper (from Perl
+    distribution Perinci-Sub-Wrapper), released on 2014-05-01.
 
 SYNOPSIS
     For dynamic usage:
@@ -168,6 +168,8 @@ FUNCTIONS
     element (result) is optional, the actual result. Fourth element (meta)
     is called result metadata and is optional, a hash that contains extra
     information.
+
+    The wrapped subroutine along with its new metadata (hash)
 
 EXTENDING
     The framework is simple and extensible. Please delve directly into the

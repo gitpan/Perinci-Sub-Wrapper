@@ -15,8 +15,8 @@ our @EXPORT_OK = qw(wrap_sub);
 
 our $Log_Wrapper_Code = $ENV{LOG_PERINCI_WRAPPER_CODE} // 0;
 
-our $VERSION = '0.60'; # VERSION
-our $DATE = '2014-04-30'; # DATE
+our $VERSION = '0.61'; # VERSION
+our $DATE = '2014-05-01'; # DATE
 
 our %SPEC;
 
@@ -1185,7 +1185,7 @@ Perinci::Sub::Wrapper - A multi-purpose subroutine wrapping framework
 
 =head1 VERSION
 
-This document describes version 0.60 of Perinci::Sub::Wrapper (from Perl distribution Perinci-Sub-Wrapper), released on 2014-04-30.
+This document describes version 0.61 of Perinci::Sub::Wrapper (from Perl distribution Perinci-Sub-Wrapper), released on 2014-05-01.
 
 =head1 SYNOPSIS
 
@@ -1361,6 +1361,8 @@ First element (status) is an integer containing HTTP status code
 200. Third element (result) is optional, the actual result. Fourth
 element (meta) is called result metadata and is optional, a hash
 that contains extra information.
+
+The wrapped subroutine along with its new metadata (hash)
 
 =for Pod::Coverage ^(new|handle(meta)?_.+|wrap|add_.+|section_empty|indent|unindent|get_indent_level|select_section|push_lines)$
 
