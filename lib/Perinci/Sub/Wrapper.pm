@@ -15,8 +15,8 @@ our @EXPORT_OK = qw(wrap_sub);
 
 our $Log_Wrapper_Code = $ENV{LOG_PERINCI_WRAPPER_CODE} // 0;
 
-our $VERSION = '0.61'; # VERSION
-our $DATE = '2014-05-01'; # DATE
+our $VERSION = '0.62'; # VERSION
+our $DATE = '2014-09-06'; # DATE
 
 our %SPEC;
 
@@ -812,14 +812,26 @@ sub wrap {
     $args{convert}                     //= {};
     $args{compile}                     //= 1;
     $args{log}                         //= 1;
-    $args{validate_args}               //=
+    $args{validate_args}               //= 0
+        # function might want to disable validate_args by default, e.g. if
+        # source code has been processed with
+        # Dist::Zilla::Plugin::Rinci::Validate
+        if $meta->{'x.perinci.sub.wrapper.disable_validate_args'};
+    $args{validate_args}               //= 0
         # by default do not validate args again if previous wrapper(s) have
         # already done it
-        !(grep {$_->{validate_args}} @$wrap_logs);
-    $args{validate_result}             //=
+        if (grep {$_->{validate_args}} @$wrap_logs);
+    $args{validate_args}               //= 1;
+    $args{validate_result}             //= 0
+        # function might want to disable validate_result by default, e.g. if
+        # source code has been processed with
+        # Dist::Zilla::Plugin::Rinci::Validate
+        if $meta->{'x.perinci.sub.wrapper.disable_validate_result'};
+    $args{validate_result}             //= 0
         # by default do not validate result again if previous wrapper(s) have
         # already done it
-        !(grep {$_->{validate_result}} @$wrap_logs);
+        if (grep {$_->{validate_result}} @$wrap_logs);
+    $args{validate_result}             //= 1;
 
     my $sub_ref_name;
     # if sub_name is not provided, create a unique name for it. it is needed by
@@ -1185,7 +1197,7 @@ Perinci::Sub::Wrapper - A multi-purpose subroutine wrapping framework
 
 =head1 VERSION
 
-This document describes version 0.61 of Perinci::Sub::Wrapper (from Perl distribution Perinci-Sub-Wrapper), released on 2014-05-01.
+This document describes version 0.62 of Perinci::Sub::Wrapper (from Perl distribution Perinci-Sub-Wrapper), released on 2014-09-06.
 
 =head1 SYNOPSIS
 
@@ -1291,7 +1303,7 @@ Properties to convert to new value.
 
 Not all properties can be converted, but these are a partial list of those that
 can: v (usually do not need to be specified when converting from 1.0 to 1.1,
-will be done automatically), argsI<as, result>naked, default_lang.
+will be done automatically), args_as, result_naked, default_lang.
 
 =item * B<debug> => I<bool> (default: 0)
 
@@ -1302,10 +1314,7 @@ what this does:
 
 =over
 
-=item *
-
-add more comments (e.g. for each property handler)
-
+=item * add more comments (e.g. for each property handler)
 
 =back
 
@@ -1364,6 +1373,16 @@ that contains extra information.
 
 The wrapped subroutine along with its new metadata (hash)
 
+Aside from wrapping the subroutine, the wrapper will also create a new metadata
+for the subroutine. The new metadata is a clone of the original, with some
+properties changed, e.g. schema in C<args> and C<result> normalized, some values
+changed according to the C<convert> argument, some defaults set, etc.
+
+The new metadata will also contain (or append) the wrapping log located in the
+C<x.perinci.sub.wrapper.logs> attribute. The wrapping log marks that the wrapper
+has added some functionality (like validating arguments or result) so that
+future nested wrapper can choose to avoid duplicating the same functionality.
+
 =for Pod::Coverage ^(new|handle(meta)?_.+|wrap|add_.+|section_empty|indent|unindent|get_indent_level|select_section|push_lines)$
 
 =head1 EXTENDING
@@ -1405,6 +1424,27 @@ The OO interface is only used internally or when you want to extend the wrapper.
 
 If set to 1, will log the generated wrapper code. This value is used to set
 C<$Log_Wrapper_Code> if it is not already set.
+
+=head1 RINCI FUNCTION METADATA
+
+=head2 x.perinci.sub.wrapper.disable_validate_args => bool
+
+Can be set to 1 to set C<validate_args> to 0 by default. This is used e.g. if
+you already embed/insert code to validate arguments by other means and do not
+want to repeat validating arguments. E.g. used if you use
+L<Dist::Zilla::Plugin::Rinci::Validate>.
+
+=head2 x.perinci.sub.wrapper.disable_validate_result => bool
+
+Can be set to 1 to set C<validate_result> to 0 by default. This is used e.g. if
+you already embed/insert code to validate result by other means and do not want
+to repeat validating result. E.g. used if you use
+L<Dist::Zilla::Plugin::Rinci::Validate>.
+
+=head2 x.perinci.sub.wrapper.logs => array
+
+Generated/added by this module to the function metadata for every wrapping done.
+Used to avoid adding repeated code, e.g. to validate result or arguments.
 
 =head1 PERFORMANCE NOTES
 
@@ -1526,11 +1566,11 @@ feature.
 
 =head1 AUTHOR
 
-Steven Haryanto <stevenharyanto@gmail.com>
+perlancar <perlancar@cpan.org>
 
 =head1 COPYRIGHT AND LICENSE
 
-This software is copyright (c) 2014 by Steven Haryanto.
+This software is copyright (c) 2014 by perlancar@cpan.org.
 
 This is free software; you can redistribute it and/or modify it under
 the same terms as the Perl 5 programming language system itself.

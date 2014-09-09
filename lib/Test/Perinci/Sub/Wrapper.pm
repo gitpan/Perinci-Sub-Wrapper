@@ -11,7 +11,7 @@ use Test::More 0.96;
 our @ISA = qw(Exporter);
 our @EXPORT_OK = qw(test_wrap);
 
-our $VERSION = '0.61'; # VERSION
+our $VERSION = '0.62'; # VERSION
 
 sub test_wrap {
     my %test_args = @_;
@@ -207,7 +207,7 @@ Test::Perinci::Sub::Wrapper - Provide test_wrap() to test wrapper
 
 =head1 VERSION
 
-This document describes version 0.61 of Test::Perinci::Sub::Wrapper (from Perl distribution Perinci-Sub-Wrapper), released on 2014-05-01.
+This document describes version 0.62 of Test::Perinci::Sub::Wrapper (from Perl distribution Perinci-Sub-Wrapper), released on 2014-09-06.
 
 =for Pod::Coverage test_wrap
 
@@ -229,11 +229,11 @@ feature.
 
 =head1 AUTHOR
 
-Steven Haryanto <stevenharyanto@gmail.com>
+perlancar <perlancar@cpan.org>
 
 =head1 COPYRIGHT AND LICENSE
 
-This software is copyright (c) 2014 by Steven Haryanto.
+This software is copyright (c) 2014 by perlancar@cpan.org.
 
 This is free software; you can redistribute it and/or modify it under
 the same terms as the Perl 5 programming language system itself.
