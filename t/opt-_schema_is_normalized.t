@@ -26,16 +26,9 @@ subtest 'opt: _schema_is_normalized' => sub {
     test_wrap(
         name => 'not normalized',
         wrap_args => {sub => $sub, meta => $meta, _schema_is_normalized=>1},
-        posttest => sub {
-            my ($wrap_res, $call_res) = @_;
-            my $newmeta = $wrap_res->[2]{meta};
-            is_deeply($newmeta->{args}{a}{schema}, "int",
-                      "schemas are not normalized (a)")
-                or diag explain $newmeta;
-            is_deeply($newmeta->{args}{b}{cmdline_aliases}{B}{schema}, "bool",
-                      "schemas in cmdline_aliases are not normalized (b)")
-                or diag explain $newmeta;
-        },
+        wrap_dies => 1,
+        # because Data::Sah will assume that schema is normalized, thus will die
+        # trying to access scalar "int" as array.
     );
 };
 
