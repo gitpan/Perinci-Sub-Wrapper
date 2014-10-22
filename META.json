@@ -35,7 +35,7 @@
             "Perinci::Sub::DepChecker" : "0.06",
             "Perinci::Sub::Normalize" : "0.04",
             "Perinci::Sub::Util" : "0",
-            "Rinci" : "v1.1.46",
+            "Rinci" : "v1.1.61",
             "SHARYANTO::String::Util" : "0.22",
             "experimental" : "0",
             "perl" : "5.010001"
@@ -62,7 +62,7 @@
          "web" : "https://github.com/perlancar/perl-Perinci-Sub-Wrapper"
       }
    },
-   "version" : "0.63",
+   "version" : "0.64",
    "x_Dist_Zilla" : {
       "perl" : {
          "version" : "5.018002"
