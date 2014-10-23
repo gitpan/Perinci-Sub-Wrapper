@@ -15,8 +15,8 @@ our @EXPORT_OK = qw(wrap_sub);
 
 our $Log_Wrapper_Code = $ENV{LOG_PERINCI_WRAPPER_CODE} // 0;
 
-our $VERSION = '0.64'; # VERSION
-our $DATE = '2014-10-22'; # DATE
+our $VERSION = '0.65'; # VERSION
+our $DATE = '2014-10-23'; # DATE
 
 our %SPEC;
 
@@ -566,21 +566,6 @@ sub _handle_args {
 
         my $sch = $argspec->{schema};
 
-        if (!$opt_va) {
-            if ($argspec->{encoding}) {
-                # also do this when !opt_va
-                die "Unknown encoding for arg '$argname' '$argspec->{encoding}".
-                    ", only 'base64' is supported"
-                        unless $argspec->{encoding} eq 'base64';
-                $self->_add_module("MIME::Base64");
-                $self->push_lines("if (defined($argterm) && !ref($argterm)) {");
-                $self->indent;
-                $self->push_lines("$argterm = MIME::Base64::decode_base64($argterm);");
-                $self->unindent;
-                $self->push_lines("}");
-            }
-        }
-
         if ($sch) {
             my $has_default_prop = exists($argspec->{default});
             my $has_sch_default  = ref($sch) eq 'ARRAY' &&
@@ -601,18 +586,6 @@ sub _handle_args {
                     for sort keys %{ $cd->{vars} };
                 $self->push_lines("if (exists($argterm)) {");
                 $self->indent;
-                if ($argspec->{encoding}) {
-                    # also do this when !opt_va
-                    die "Unknown encoding for arg '$argname' ".
-                        "'$argspec->{encoding}', only 'base64' is supported"
-                            unless $argspec->{encoding} eq 'base64';
-                    $self->_add_module("MIME::Base64");
-                    $self->push_lines("if (defined($argterm) && !ref($argterm)) {");
-                    $self->indent;
-                    $self->push_lines("$argterm = MIME::Base64::decode_base64($argterm);");
-                    $self->unindent;
-                    $self->push_lines("}");
-                }
                 $self->push_lines("my \$err_$dn;\n$cd->{result};");
                 $self->_errif(
                     400, qq["Invalid value for argument '$prefix$argname': \$err_$dn"],
@@ -698,7 +671,7 @@ sub handle_result {
         # check builtin result spec key
         next if $k =~ /\A(
                            summary|description|tags|default_lang|
-                           schema|statuses|encoding|
+                           schema|statuses|
                            x
                        )\z/x;
         # try a property module first
@@ -779,38 +752,6 @@ sub handle_result {
             $self->push_lines("}");
         }
     }
-
-    # encode the result
-    if ($v->{encoding}) {
-        $self->select_section('after_call_after_res_validation');
-        die "Unknown encoding for result '$v->{encoding}', ".
-            "only 'base64' is supported"
-                unless $v->{encoding} eq 'base64';
-        $self->_add_module("MIME::Base64");
-        $self->push_lines('', "# encode result (if not already encoded)");
-        if ($self->{_meta}{result_naked}) {
-            $self->push_lines(
-                '$_w_res = MIME::Base64::encode_base64($_w_res) '.
-                    'if defined($_w_res) && !ref($_w_res);');
-        } else {
-            $self->push_lines(
-                '$_w_res->[2] = MIME::Base64::encode_base64($_w_res->[2]) '.
-                    'if defined($_w_res->[2]) && !ref($_w_res->[2]);');
-            $self->push_lines('if ($_w_res->[3] && !$_w_res->[3]{encoding}) {');
-            $self->indent;
-            $self->push_lines('for (keys %{$_w_res->[3]}) {');
-            $self->indent;
-            $self->push_lines('next unless /\Afunc\./;');
-            $self->push_lines('next unless defined($_w_res->[3]{$_}) && '.
-                                  '!ref($_w_res->[3]{$_});');
-            $self->unindent;
-            $self->push_lines('}');
-            $self->push_lines('$_w_res->[3]{encoding} = \'base64\';');
-            $self->unindent;
-            $self->push_lines('}');
-        }
-    }
-
 }
 
 sub handlemeta_result_naked { {v=>2, prio=>99, convert=>1} }
@@ -1300,7 +1241,7 @@ Perinci::Sub::Wrapper - A multi-purpose subroutine wrapping framework
 
 =head1 VERSION
 
-This document describes version 0.64 of Perinci::Sub::Wrapper (from Perl distribution Perinci-Sub-Wrapper), released on 2014-10-22.
+This document describes version 0.65 of Perinci::Sub::Wrapper (from Perl distribution Perinci-Sub-Wrapper), released on 2014-10-23.
 
 =head1 SYNOPSIS
 
