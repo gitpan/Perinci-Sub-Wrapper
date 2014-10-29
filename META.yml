@@ -31,7 +31,7 @@ resources:
   bugtracker: https://rt.cpan.org/Public/Dist/Display.html?Name=Perinci-Sub-Wrapper
   homepage: https://metacpan.org/release/Perinci-Sub-Wrapper
   repository: git://github.com/perlancar/perl-Perinci-Sub-Wrapper.git
-version: '0.65'
+version: '0.66'
 x_Dist_Zilla:
   perl:
     version: '5.018002'

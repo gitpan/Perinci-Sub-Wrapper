@@ -15,8 +15,8 @@ our @EXPORT_OK = qw(wrap_sub);
 
 our $Log_Wrapper_Code = $ENV{LOG_PERINCI_WRAPPER_CODE} // 0;
 
-our $VERSION = '0.65'; # VERSION
-our $DATE = '2014-10-23'; # DATE
+our $VERSION = '0.66'; # VERSION
+our $DATE = '2014-10-29'; # DATE
 
 our %SPEC;
 
@@ -564,10 +564,10 @@ sub _handle_args {
             $argterm .= "->{'$argname'}";
         }
 
+        my $has_default_prop = exists($argspec->{default});
         my $sch = $argspec->{schema};
 
         if ($sch) {
-            my $has_default_prop = exists($argspec->{default});
             my $has_sch_default  = ref($sch) eq 'ARRAY' &&
                 exists($sch->[1]{default}) ? 1:0;
             if ($opt_va) {
@@ -616,7 +616,7 @@ sub _handle_args {
                         argsterm => '%{'.$argterm.'->['.$indexterm.']}',
                     );
                     $self->unindent;
-                    $self->push_lines('}');
+                    $self->push_lines('}'); # if exists arg
                 }
                 $self->unindent;
                 if ($has_default_prop) {
@@ -630,6 +630,11 @@ sub _handle_args {
                 }
                 $self->push_lines('}');
             }
+        } elsif ($has_default_prop) {
+            # doesn't have schema but have 'default' property, we still need to
+            # set default here
+            $self->push_lines("$argterm = ".__squote($argspec->{default}).
+                                  " if !exists($argterm);");
         }
         if ($argspec->{req} && $opt_va) {
             $self->_errif(
@@ -977,7 +982,7 @@ sub wrap {
             meth=>"handle_$k",
         };
         if (exists $opt_cvt->{$k0}) {
-            return [502, "Property '$k0' does not support conversion"]
+            return [501, "Property '$k0' does not support conversion"]
                 unless $hm->{convert};
             $ha->{new}   = $opt_cvt->{$k0};
             $meta->{$k0} = $opt_cvt->{$k0};
@@ -1241,7 +1246,7 @@ Perinci::Sub::Wrapper - A multi-purpose subroutine wrapping framework
 
 =head1 VERSION
 
-This document describes version 0.65 of Perinci::Sub::Wrapper (from Perl distribution Perinci-Sub-Wrapper), released on 2014-10-23.
+This document describes version 0.66 of Perinci::Sub::Wrapper (from Perl distribution Perinci-Sub-Wrapper), released on 2014-10-29.
 
 =head1 SYNOPSIS
 
