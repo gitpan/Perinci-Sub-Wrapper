@@ -15,8 +15,8 @@ our @EXPORT_OK = qw(wrap_sub);
 
 our $Log_Wrapper_Code = $ENV{LOG_PERINCI_WRAPPER_CODE} // 0;
 
-our $VERSION = '0.66'; # VERSION
-our $DATE = '2014-10-29'; # DATE
+our $VERSION = '0.67'; # VERSION
+our $DATE = '2014-12-10'; # DATE
 
 our %SPEC;
 
@@ -544,7 +544,7 @@ sub _handle_args {
         $self->push_lines('', '# check args') if $prefix eq '';
         $self->push_lines("for (sort keys $argsterm) {");
         $self->indent;
-        $self->_errif(400, q["Invalid argument name '].$prefix.q[$_'"],
+        $self->_errif(400, q["Invalid argument name (please use letters/numbers/underscores only)'].$prefix.q[$_'"],
                       '!/\A(-?)\w+(\.\w+)*\z/o');
         $self->_errif(400, q["Unknown argument '].$prefix.q[$_'"],
                       '!($1 || $_ ~~ '.__squote([sort keys %$v]).')');
@@ -588,7 +588,7 @@ sub _handle_args {
                 $self->indent;
                 $self->push_lines("my \$err_$dn;\n$cd->{result};");
                 $self->_errif(
-                    400, qq["Invalid value for argument '$prefix$argname': \$err_$dn"],
+                    400, qq["Argument '$prefix$argname' fails validation: \$err_$dn"],
                     "\$err_$dn");
                 if ($argspec->{meta}) {
                     $self->push_lines("# check subargs of $prefix$argname");
@@ -607,7 +607,7 @@ sub _handle_args {
                     $self->push_lines('for my '.$indexterm.' (0..$#{ '.$argterm.' }) {');
                     $self->indent;
                     $self->_errif(
-                        400, qq("Invalid value for argument '$prefix$argname\[).qq($indexterm]': must be hash"),
+                        400, qq("Argument '$prefix$argname\[).qq($indexterm]' fails validation: must be hash"),
                         "ref($argterm\->[$indexterm]) ne 'HASH'");
                     $self->_handle_args(
                         %args,
@@ -750,7 +750,7 @@ sub handle_result {
             $self->push_lines("$cd->{result};");
             $self->_errif(
                 500,
-                qq["BUG: Sub $sub_name produces invalid result (status=$s): ].
+                qq["BUG: Result from sub $sub_name fails validation: ].
                     qq[\$_w_err2_res"],
                 "\$_w_err2_res");
             $self->unindent;
@@ -1082,10 +1082,10 @@ sub wrap {
     } else {
         my $source = $self->_format_dyn_wrapper_code;
         if ($Log_Wrapper_Code && $log->is_trace) {
-            require SHARYANTO::String::Util;
+            require String::LineNumber;
             $log->tracef("wrapper code:\n%s",
                          $ENV{LINENUM} // 1 ?
-                             SHARYANTO::String::Util::linenum($source) :
+                             String::LineNumber::linenum($source) :
                                    $source);
         }
         $result->{source} = $source;
@@ -1246,7 +1246,7 @@ Perinci::Sub::Wrapper - A multi-purpose subroutine wrapping framework
 
 =head1 VERSION
 
-This document describes version 0.66 of Perinci::Sub::Wrapper (from Perl distribution Perinci-Sub-Wrapper), released on 2014-10-29.
+This document describes version 0.67 of Perinci::Sub::Wrapper (from Perl distribution Perinci-Sub-Wrapper), released on 2014-12-10.
 
 =head1 SYNOPSIS
 
@@ -1424,11 +1424,11 @@ The wrapped subroutine along with its new metadata (hash)
 
 Aside from wrapping the subroutine, the wrapper will also create a new metadata
 for the subroutine. The new metadata is a clone of the original, with some
-properties changed, e.g. schema in `args` and `result` normalized, some values
-changed according to the `convert` argument, some defaults set, etc.
+properties changed, e.g. schema in C<args> and C<result> normalized, some values
+changed according to the C<convert> argument, some defaults set, etc.
 
 The new metadata will also contain (or append) the wrapping log located in the
-`x.perinci.sub.wrapper.logs` attribute. The wrapping log marks that the wrapper
+C<x.perinci.sub.wrapper.logs> attribute. The wrapping log marks that the wrapper
 has added some functionality (like validating arguments or result) so that
 future nested wrapper can choose to avoid duplicating the same functionality.
 
